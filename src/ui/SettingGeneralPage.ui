@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SettingGeneralPage</class>
+ <widget class="QWidget" name="SettingGeneralPage">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QScrollArea" name="scrollArea">
+     <property name="widgetResizable">
+      <bool>true</bool>
+     </property>
+     <widget class="QWidget" name="scrollAreaWidgetContents">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>780</width>
+        <height>580</height>
+       </rect>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,0,0,0,0,0,0,1">
+       <item>
+        <widget class="ElaText" name="titleLabel">
+         <property name="font">
+          <font>
+           <pointsize>20</pointsize>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>General Settings</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="ElaText" name="sectionPrompt">
+         <property name="font">
+          <font>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>System Prompt</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="ElaPlainTextEdit" name="plainTextEdit_systemPrompt">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>120</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>16777215</width>
+           <height>200</height>
+          </size>
+         </property>
+         <property name="plainText">
+          <string>You are a helpful assistant.</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="ElaText" name="sectionParams">
+         <property name="font">
+          <font>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>Parameters</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="ElaScrollPageArea" name="tempArea" native="true">
+         <layout class="QHBoxLayout" name="tempLayout" stretch="0,1,0">
+          <property name="leftMargin">
+           <number>15</number>
+          </property>
+          <property name="rightMargin">
+           <number>15</number>
+          </property>
+          <item>
+           <widget class="ElaText" name="tempLabel">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Higher values make output more random, lower values more deterministic</string>
+            </property>
+            <property name="text">
+             <string>Temperature</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="tempSpacer">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="ElaDoubleSpinBox" name="doubleSpinBox_temperature">
+            <property name="minimum">
+             <double>0.000000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>2.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>0.100000000000000</double>
+            </property>
+            <property name="value">
+             <double>0.700000000000000</double>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="ElaScrollPageArea" name="tokensArea" native="true">
+         <layout class="QHBoxLayout" name="tokensLayout" stretch="0,1,0">
+          <property name="leftMargin">
+           <number>15</number>
+          </property>
+          <property name="rightMargin">
+           <number>15</number>
+          </property>
+          <item>
+           <widget class="ElaText" name="tokensLabel">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Maximum number of tokens in the response</string>
+            </property>
+            <property name="text">
+             <string>Max Tokens</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="tokensSpacer">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="ElaSpinBox" name="spinBox_maxTokens">
+            <property name="minimum">
+             <number>100</number>
+            </property>
+            <property name="maximum">
+             <number>128000</number>
+            </property>
+            <property name="singleStep">
+             <number>100</number>
+            </property>
+            <property name="value">
+             <number>4096</number>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="ElaText" name="noteLabel">
+         <property name="font">
+          <font>
+           <pointsize>8</pointsize>
+          </font>
+         </property>
+         <property name="text">
+          <string>Settings are saved automatically when modified.</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>0</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>ElaText</class>
+   <extends>QLabel</extends>
+   <header location="global">ElaText.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ElaScrollPageArea</class>
+   <extends>QWidget</extends>
+   <header location="global">ElaScrollPageArea.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ElaPlainTextEdit</class>
+   <extends>QPlainTextEdit</extends>
+   <header location="global">ElaPlainTextEdit.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ElaDoubleSpinBox</class>
+   <extends>QDoubleSpinBox</extends>
+   <header location="global">ElaDoubleSpinBox.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ElaSpinBox</class>
+   <extends>QSpinBox</extends>
+   <header location="global">ElaSpinBox.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

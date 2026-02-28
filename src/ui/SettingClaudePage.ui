@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SettingClaudePage</class>
+ <widget class="QWidget" name="SettingClaudePage">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>500</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QScrollArea" name="scrollArea">
+     <property name="widgetResizable">
+      <bool>true</bool>
+     </property>
+     <widget class="QWidget" name="scrollAreaWidgetContents">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>780</width>
+        <height>480</height>
+       </rect>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,0,0,0,0,1">
+       <item>
+        <widget class="ElaText" name="titleLabel">
+         <property name="font">
+          <font>
+           <pointsize>20</pointsize>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>Claude API Settings</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="ElaScrollPageArea" name="apiKeyArea" native="true">
+         <layout class="QHBoxLayout" name="apiKeyLayout" stretch="2,3">
+          <property name="leftMargin">
+           <number>15</number>
+          </property>
+          <property name="rightMargin">
+           <number>15</number>
+          </property>
+          <item>
+           <widget class="ElaText" name="apiKeyLabel">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>API Key</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="ElaLineEdit" name="lineEdit_apiKey">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>sk-ant-xxxx</string>
+            </property>
+            <property name="echoMode">
+             <enum>QLineEdit::Password</enum>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="ElaScrollPageArea" name="baseUrlArea" native="true">
+         <layout class="QHBoxLayout" name="baseUrlLayout" stretch="2,3">
+          <property name="leftMargin">
+           <number>15</number>
+          </property>
+          <property name="rightMargin">
+           <number>15</number>
+          </property>
+          <item>
+           <widget class="ElaText" name="baseUrlLabel">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Claude API base URL</string>
+            </property>
+            <property name="text">
+             <string>Base URL</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="ElaLineEdit" name="lineEdit_baseUrl">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>https://api.anthropic.com</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="ElaScrollPageArea" name="modelArea" native="true">
+         <layout class="QHBoxLayout" name="modelLayout" stretch="2,3">
+          <property name="leftMargin">
+           <number>15</number>
+          </property>
+          <property name="rightMargin">
+           <number>15</number>
+          </property>
+          <item>
+           <widget class="ElaText" name="modelLabel">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Model</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="ElaComboBox" name="comboBox_model">
+            <item>
+             <property name="text">
+              <string>claude-opus-4-6</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>claude-sonnet-4-6</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>claude-opus-4-5-20250514</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>claude-sonnet-4-5-20250514</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>claude-sonnet-4-20250514</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>claude-haiku-4-5-20251001</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>claude-3-5-sonnet-20241022</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>claude-3-5-sonnet-20240620</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>claude-3-5-haiku-20241022</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>claude-3-opus-20240229</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>claude-3-sonnet-20240229</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>claude-3-haiku-20240307</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="ElaText" name="noteLabel">
+         <property name="font">
+          <font>
+           <pointsize>8</pointsize>
+          </font>
+         </property>
+         <property name="text">
+          <string>Settings are saved automatically when modified.</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>0</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>ElaText</class>
+   <extends>QLabel</extends>
+   <header location="global">ElaText.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ElaScrollPageArea</class>
+   <extends>QWidget</extends>
+   <header location="global">ElaScrollPageArea.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ElaLineEdit</class>
+   <extends>QLineEdit</extends>
+   <header location="global">ElaLineEdit.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ElaComboBox</class>
+   <extends>QComboBox</extends>
+   <header location="global">ElaComboBox.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>
