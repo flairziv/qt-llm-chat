@@ -10,6 +10,7 @@ SettingOpenAIPage::SettingOpenAIPage(AppSettings *settings, QWidget *parent)
     , m_settings(settings)
 {
     ui->setupUi(this);
+    ui->scrollArea->viewport()->setAutoFillBackground(false);
     loadSettings();
     connectAutoSave();
 }

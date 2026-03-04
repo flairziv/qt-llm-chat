@@ -10,6 +10,11 @@
     <height>500</height>
    </rect>
   </property>
+  <property name="styleSheet">
+   <string notr="true">#SettingClaudePage { background: transparent; }
+QScrollArea { background: transparent; border: none; }
+#scrollAreaWidgetContents { background: transparent; }</string>
+  </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <widget class="QScrollArea" name="scrollArea">

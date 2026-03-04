@@ -127,6 +127,24 @@ int AppSettings::tachiePositionY() const { return m_settings->value("Tachie/posi
 void AppSettings::setTachiePositionY(int y) { m_settings->setValue("Tachie/position_y", y); m_settings->sync(); }
 
 // ============================================================
+// 背景图配置
+// ============================================================
+// INI 文件中的 [Background] 分组
+// 路径为空时 MainWindow 使用内置资源文件作为兜底
+
+/// 绘制模式：0=Normal, 1=Pixmap, 2=Movie，默认 2(Movie)
+int AppSettings::backgroundPaintMode() const { return m_settings->value("Background/paint_mode", 2).toInt(); }
+void AppSettings::setBackgroundPaintMode(int mode) { m_settings->setValue("Background/paint_mode", mode); m_settings->sync(); }
+
+/// 静态背景图本地路径，如 "C:/imgs/bg.png"
+QString AppSettings::backgroundPixmapPath() const { return m_settings->value("Background/pixmap_path").toString(); }
+void AppSettings::setBackgroundPixmapPath(const QString &path) { m_settings->setValue("Background/pixmap_path", path); m_settings->sync(); }
+
+/// 动态背景图(GIF)本地路径，如 "C:/imgs/bg.gif"
+QString AppSettings::backgroundMoviePath() const { return m_settings->value("Background/movie_path").toString(); }
+void AppSettings::setBackgroundMoviePath(const QString &path) { m_settings->setValue("Background/movie_path", path); m_settings->sync(); }
+
+// ============================================================
 // 数据目录路径
 // ============================================================
 

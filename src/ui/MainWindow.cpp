@@ -67,6 +67,20 @@ void MainWindow::setupPages()
     setUserInfoCardPixmap(QPixmap(":/imgs/favicon.ico"));
     setUserInfoCardTitle("LLMChat");
     setUserInfoCardSubTitle("flairziv@gmail.com");
+    // 背景图：优先加载本地路径，为空或加载失败则用内置资源
+    QString pixmapPath = m_settings->backgroundPixmapPath();
+    QPixmap bgPixmap(pixmapPath);
+    if (bgPixmap.isNull())
+        bgPixmap = QPixmap(":/imgs/Miku.png");
+    setWindowPixmap(ElaThemeType::Light, bgPixmap);
+
+    QString moviePath = m_settings->backgroundMoviePath();
+    if (moviePath.isEmpty())
+        moviePath = ":/imgs/Miku.gif";
+    setWindowMoviePath(ElaThemeType::Light, moviePath);
+
+    setWindowPaintMode(static_cast<ElaWindowType::PaintMode>(m_settings->backgroundPaintMode()));
+    setIsCentralStackedWidgetTransparent(true);
 
     // 聊天主页面 —— 一级导航节点
     m_chatPage = new ChatPage(this);

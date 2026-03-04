@@ -76,6 +76,14 @@ public:
     int tachiePositionY() const;                // 立绘窗口 Y 坐标（默认 -1 表示自动）
     void setTachiePositionY(int y);
 
+    // --- 背景图配置 ---
+    int backgroundPaintMode() const;            // 绘制模式：0=Normal, 1=Pixmap, 2=Movie（默认 2）
+    void setBackgroundPaintMode(int mode);
+    QString backgroundPixmapPath() const;       // 静态背景图本地路径（空则用内置资源）
+    void setBackgroundPixmapPath(const QString &path);
+    QString backgroundMoviePath() const;        // 动态背景图(GIF)本地路径（空则用内置资源）
+    void setBackgroundMoviePath(const QString &path);
+
     // --- 数据目录 ---
     QString dataDir() const;                    // 返回数据根目录，供 SessionManager 使用
 

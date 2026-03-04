@@ -2,6 +2,7 @@
 #include <QWidget>
 
 class AppSettings;
+class ElaLineEdit;
 
 namespace Ui { class SettingGeneralPage; }
 
@@ -19,6 +20,10 @@ signals:
 
 private:
     void connectAutoSave();
+    void setupBackgroundSection();
+
     Ui::SettingGeneralPage *ui;
     AppSettings *m_settings;
+    ElaLineEdit *m_pixmapPathEdit = nullptr;
+    ElaLineEdit *m_moviePathEdit = nullptr;
 };
