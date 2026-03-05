@@ -164,7 +164,14 @@ QPixmap TachieWindow::loadAndScaleImage(const QString &emotionName)
  */
 void TachieWindow::changeExpression(const QString &emotionName)
 {
-    if (emotionName == m_currentEmotion) return;
+    if (emotionName == m_currentEmotion) {
+        // 相同情绪仍播放动画，给用户视觉反馈（表示立绘在"回应"）
+        int animType = m_animMap.value(emotionName, 0);
+        if (animType > 0) {
+            playAnimation(animType);
+        }
+        return;
+    }
 
     QPixmap newPix = loadAndScaleImage(emotionName);
     if (newPix.isNull()) return;
