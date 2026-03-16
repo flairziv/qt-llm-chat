@@ -127,6 +127,19 @@ int AppSettings::tachiePositionY() const { return m_settings->value("Tachie/posi
 void AppSettings::setTachiePositionY(int y) { m_settings->setValue("Tachie/position_y", y); m_settings->sync(); }
 
 // ============================================================
+// TTS 配置
+// ============================================================
+// INI 文件中的 [TTS] 分组
+
+/// 是否启用 TTS 语音朗读，默认 false
+bool AppSettings::ttsEnabled() const { return m_settings->value("TTS/enabled", false).toBool(); }
+void AppSettings::setTtsEnabled(bool enabled) { m_settings->setValue("TTS/enabled", enabled); m_settings->sync(); }
+
+/// TTS 语音名称，如 "zh-CN-XiaoxiaoNeural"
+QString AppSettings::ttsVoice() const { return m_settings->value("TTS/voice", "zh-CN-XiaoxiaoNeural").toString(); }
+void AppSettings::setTtsVoice(const QString &voice) { m_settings->setValue("TTS/voice", voice); m_settings->sync(); }
+
+// ============================================================
 // 背景图配置
 // ============================================================
 // INI 文件中的 [Background] 分组

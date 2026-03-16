@@ -11,6 +11,8 @@
 #include <ElaText.h>
 #include <ElaLineEdit.h>
 #include <ElaWindow.h>
+#include <ElaToggleSwitch.h>
+#include <ElaComboBox.h>
 
 SettingGeneralPage::SettingGeneralPage(AppSettings *settings, QWidget *parent)
     : QWidget(parent)
@@ -20,6 +22,7 @@ SettingGeneralPage::SettingGeneralPage(AppSettings *settings, QWidget *parent)
     ui->setupUi(this);
     ui->scrollArea->viewport()->setAutoFillBackground(false);
     setupBackgroundSection();
+    setupTTSSection();
     loadSettings();
     connectAutoSave();
 }
@@ -141,6 +144,92 @@ void SettingGeneralPage::setupBackgroundSection()
     });
 
     layout->insertWidget(insertIdx++, movieArea);
+}
+
+void SettingGeneralPage::setupTTSSection()
+{
+    QVBoxLayout *layout = ui->verticalLayout_2;
+    int insertIdx = layout->indexOf(ui->noteLabel);
+
+    // --- Section Header ---
+    ElaText *sectionTTS = new ElaText("TTS (Text-to-Speech)", this);
+    QFont boldFont;
+    boldFont.setBold(true);
+    sectionTTS->setFont(boldFont);
+    layout->insertWidget(insertIdx++, sectionTTS);
+
+    // --- Enable TTS Area ---
+    ElaScrollPageArea *enableArea = new ElaScrollPageArea(this);
+    QHBoxLayout *enableLayout = new QHBoxLayout(enableArea);
+    enableLayout->setContentsMargins(15, 0, 15, 0);
+
+    ElaText *enableLabel = new ElaText("Enable TTS", this);
+    enableLabel->setTextPixelSize(15);
+    enableLayout->addWidget(enableLabel);
+    enableLayout->addStretch();
+
+    m_ttsEnabledSwitch = new ElaToggleSwitch(this);
+    m_ttsEnabledSwitch->setIsToggled(m_settings->ttsEnabled());
+    enableLayout->addWidget(m_ttsEnabledSwitch);
+
+    connect(m_ttsEnabledSwitch, &ElaToggleSwitch::toggled, this, [this]() {
+        m_settings->setTtsEnabled(m_ttsEnabledSwitch->getIsToggled());
+    });
+
+    layout->insertWidget(insertIdx++, enableArea);
+
+    // --- Voice Selection Area ---
+    ElaScrollPageArea *voiceArea = new ElaScrollPageArea(this);
+    QHBoxLayout *voiceLayout = new QHBoxLayout(voiceArea);
+    voiceLayout->setContentsMargins(15, 0, 15, 0);
+
+    ElaText *voiceLabel = new ElaText("Voice", this);
+    voiceLabel->setTextPixelSize(15);
+    voiceLayout->addWidget(voiceLabel);
+    voiceLayout->addStretch();
+
+    m_ttsVoiceCombo = new ElaComboBox(this);
+    m_ttsVoiceCombo->setMinimumWidth(250);
+
+    // 常用中文和英文语音列表
+    QStringList voices = {
+        "zh-CN-XiaoxiaoNeural",
+        "zh-CN-YunxiNeural",
+        "zh-CN-XiaoyiNeural",
+        "zh-CN-YunjianNeural",
+        "zh-CN-YunyangNeural",
+        "zh-CN-XiaochenNeural",
+        "zh-CN-XiaohanNeural",
+        "zh-CN-XiaomengNeural",
+        "zh-CN-XiaomoNeural",
+        "zh-CN-XiaoruiNeural",
+        "zh-CN-XiaoshuangNeural",
+        "zh-CN-XiaoxuanNeural",
+        "zh-CN-XiaoyanNeural",
+        "zh-CN-XiaozhenNeural",
+        "zh-CN-YunfengNeural",
+        "zh-CN-YunhaoNeural",
+        "zh-CN-YunzeNeural",
+        "en-US-JennyNeural",
+        "en-US-GuyNeural",
+        "en-US-AriaNeural",
+        "ja-JP-NanamiNeural",
+        "ja-JP-KeitaNeural",
+    };
+    m_ttsVoiceCombo->addItems(voices);
+
+    // 恢复保存的语音选择
+    QString savedVoice = m_settings->ttsVoice();
+    int voiceIdx = voices.indexOf(savedVoice);
+    if (voiceIdx >= 0)
+        m_ttsVoiceCombo->setCurrentIndex(voiceIdx);
+
+    connect(m_ttsVoiceCombo, &QComboBox::currentTextChanged, this, [this](const QString &text) {
+        m_settings->setTtsVoice(text);
+    });
+
+    voiceLayout->addWidget(m_ttsVoiceCombo);
+    layout->insertWidget(insertIdx++, voiceArea);
 }
 
 void SettingGeneralPage::loadSettings()

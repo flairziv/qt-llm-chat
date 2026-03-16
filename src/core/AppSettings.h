@@ -76,6 +76,12 @@ public:
     int tachiePositionY() const;                // 立绘窗口 Y 坐标（默认 -1 表示自动）
     void setTachiePositionY(int y);
 
+    // --- TTS 配置 ---
+    bool ttsEnabled() const;                    // 是否启用 TTS 语音朗读（默认 false）
+    void setTtsEnabled(bool enabled);
+    QString ttsVoice() const;                   // TTS 语音名称（默认 "zh-CN-XiaoxiaoNeural"）
+    void setTtsVoice(const QString &voice);
+
     // --- 背景图配置 ---
     int backgroundPaintMode() const;            // 绘制模式：0=Normal, 1=Pixmap, 2=Movie（默认 2）
     void setBackgroundPaintMode(int mode);

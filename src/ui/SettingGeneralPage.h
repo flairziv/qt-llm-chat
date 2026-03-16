@@ -3,6 +3,8 @@
 
 class AppSettings;
 class ElaLineEdit;
+class ElaToggleSwitch;
+class ElaComboBox;
 
 namespace Ui { class SettingGeneralPage; }
 
@@ -21,9 +23,12 @@ signals:
 private:
     void connectAutoSave();
     void setupBackgroundSection();
+    void setupTTSSection();
 
     Ui::SettingGeneralPage *ui;
     AppSettings *m_settings;
     ElaLineEdit *m_pixmapPathEdit = nullptr;
     ElaLineEdit *m_moviePathEdit = nullptr;
+    ElaToggleSwitch *m_ttsEnabledSwitch = nullptr;
+    ElaComboBox *m_ttsVoiceCombo = nullptr;
 };

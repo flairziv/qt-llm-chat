@@ -11,6 +11,8 @@ class SettingGeneralPage;
 class LLMProvider;
 class ChatSession;
 class TachieWindow;
+class EdgeTTSProvider;
+class QMediaPlayer;
 
 /**
  * @brief 应用主窗口 -- 核心调度中心
@@ -73,4 +75,8 @@ private:
     bool m_tachieEnabled = false;               // 是否启用立绘联动
     bool m_emotionTagParsed = false;            // 当前回复的情绪标签是否已解析
     QString m_tokenBuffer;                      // 缓冲前几个 token 用于提取情绪标签
+
+    // TTS 相关
+    EdgeTTSProvider *m_ttsProvider = nullptr;    // Edge TTS 语音合成器
+    QMediaPlayer *m_ttsPlayer = nullptr;         // MP3 音频播放器
 };

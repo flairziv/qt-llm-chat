@@ -8,7 +8,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Network)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Network WebSockets Multimedia)
 
 set(SOURCES
     main.cpp
@@ -19,6 +19,7 @@ set(SOURCES
     src/core/ChatSession.cpp
     src/core/SessionManager.cpp
     src/core/AppSettings.cpp
+    src/core/EdgeTTSProvider.cpp
     src/ui/MainWindow.cpp
     src/ui/ChatPage.cpp
     src/ui/MessageBubble.cpp
@@ -37,6 +38,7 @@ set(HEADERS
     src/core/ChatSession.h
     src/core/SessionManager.h
     src/core/AppSettings.h
+    src/core/EdgeTTSProvider.h
     src/ui/MainWindow.h
     src/ui/ChatPage.h
     src/ui/MessageBubble.h
@@ -77,6 +79,8 @@ target_include_directories(LLMChat PRIVATE
 target_link_libraries(LLMChat PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::WebSockets
+    Qt${QT_VERSION_MAJOR}::Multimedia
     ${CMAKE_SOURCE_DIR}/third_party/ElaWidgetTools/lib/ElaWidgetTools.lib
 )
 

@@ -9,10 +9,13 @@
 #include "core/ClaudeProvider.h"
 #include "core/OpenAIProvider.h"
 #include "core/ChatSession.h"
+#include "core/EdgeTTSProvider.h"
 
 #include <QRegularExpression>
 #include <QCoreApplication>
 #include <QShortcut>
+#include <QMediaPlayer>
+#include <QDebug>
 
 // ============================================================================
 // 构造 / 析构
@@ -29,6 +32,29 @@ MainWindow::MainWindow(AppSettings *settings, QWidget *parent)
     createProvider();   // 3. 根据设置创建 LLM Provider
     loadSessions();     // 4. 从磁盘加载历史会话
     setupTachie();      // 5. 初始化立绘窗口
+
+    // 6. 初始化 TTS（MP3 播放：合成完成后播放完整文件）
+    m_ttsProvider = new EdgeTTSProvider(this);
+    m_ttsPlayer = new QMediaPlayer(this);
+
+    // 合成完成 → 播放 MP3 文件
+    connect(m_ttsProvider, &EdgeTTSProvider::synthesisFinished,
+            this, [this](const QString &audioFilePath) {
+        qDebug() << "[TTS] Playing audio file:" << audioFilePath;
+        m_ttsPlayer->setMedia(QMediaContent(QUrl::fromLocalFile(audioFilePath)));
+        m_ttsPlayer->play();
+    });
+
+    // TTS 错误日志
+    connect(m_ttsProvider, &EdgeTTSProvider::errorOccurred,
+            this, [](const QString &err) {
+        qWarning() << "[TTS] Error:" << err;
+    });
+
+    // TTS 启用时预建立 WebSocket 连接，消除首次合成的建连延迟
+    if (m_settings->ttsEnabled()) {
+        m_ttsProvider->preConnect();
+    }
 }
 
 MainWindow::~MainWindow()
@@ -37,6 +63,9 @@ MainWindow::~MainWindow()
     if (m_provider) {
         m_provider->abort();
     }
+    // 停止 TTS
+    m_ttsProvider->abort();
+    m_ttsPlayer->stop();
     // 保存立绘窗口位置并销毁
     if (m_tachieWindow) {
         m_settings->setTachiePositionX(m_tachieWindow->x());
@@ -81,6 +110,7 @@ void MainWindow::setupPages()
 
     setWindowPaintMode(static_cast<ElaWindowType::PaintMode>(m_settings->backgroundPaintMode()));
     setIsCentralStackedWidgetTransparent(true);
+    setWindowButtonFlag(ElaAppBarType::ThemeChangeButtonHint, false);
 
     // 聊天主页面 —— 一级导航节点
     m_chatPage = new ChatPage(this);
@@ -395,6 +425,13 @@ void MainWindow::onSendMessage(const QString &text)
     m_emotionTagParsed = false;
     m_tokenBuffer.clear();
 
+    // 重置 TTS 状态（中止上一轮朗读，预连接为新一轮做准备）
+    m_ttsProvider->abort();
+    m_ttsPlayer->stop();
+    if (m_settings->ttsEnabled()) {
+        m_ttsProvider->preConnect();  // 重置 m_aborted 并重新建连
+    }
+
     // 发起流式请求（立绘启用时使用包含情绪指令的 system prompt）
     m_provider->sendStreamingRequest(
         session->messages(),
@@ -484,6 +521,11 @@ void MainWindow::onResponseFinished(const QString &fullResponse)
         assistantMsg.content = cleanResponse;
         session->addMessage(assistantMsg);
         m_sessionManager->saveSession(session);
+    }
+
+    // TTS 朗读 AI 回复（预连接已就绪，直接发 SSML 零延迟）
+    if (m_settings->ttsEnabled() && !cleanResponse.isEmpty()) {
+        m_ttsProvider->synthesize(cleanResponse, m_settings->ttsVoice());
     }
 }
 
