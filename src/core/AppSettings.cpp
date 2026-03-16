@@ -97,8 +97,14 @@ void AppSettings::setOpenaiModel(const QString &model) { m_settings->setValue("O
 QString AppSettings::activeProvider() const { return m_settings->value("General/active_provider", "claude").toString(); }
 void AppSettings::setActiveProvider(const QString &provider) { m_settings->setValue("General/active_provider", provider); m_settings->sync(); emit settingsChanged(); }
 
+/// 默认系统提示词
+static const char *DEFAULT_SYSTEM_PROMPT =
+    "你是一个可爱的桌面伙伴，通过一个带有语音和立绘的聊天应用与用户交流。\n"
+    "回复要简洁自然、口语化，像朋友之间聊天一样。\n"
+    "避免冗长的列表和格式化文本，适合语音朗读的短句更好。";
+
 /// 系统提示词，会作为 system message 发送给 API，引导 AI 的行为
-QString AppSettings::systemPrompt() const { return m_settings->value("General/system_prompt", "You are a helpful assistant.").toString(); }
+QString AppSettings::systemPrompt() const { return m_settings->value("General/system_prompt", DEFAULT_SYSTEM_PROMPT).toString(); }
 void AppSettings::setSystemPrompt(const QString &prompt) { m_settings->setValue("General/system_prompt", prompt); m_settings->sync(); emit settingsChanged(); }
 
 /// 最大输出 token 数，限制 AI 回复长度，默认 4096
