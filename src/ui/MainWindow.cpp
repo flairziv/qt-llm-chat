@@ -37,12 +37,22 @@ MainWindow::MainWindow(AppSettings *settings, QWidget *parent)
     m_ttsProvider = new EdgeTTSProvider(this);
     m_ttsPlayer = new QMediaPlayer(this);
 
-    // 合成完成 → 播放 MP3 文件
+    // 合成完成 → 设置 flag 并播放
     connect(m_ttsProvider, &EdgeTTSProvider::synthesisFinished,
             this, [this](const QString &audioFilePath) {
-        qDebug() << "[TTS] Playing audio file:" << audioFilePath;
+        // qDebug() << "[TTS] Playing audio file:" << audioFilePath;
+        m_ttsPendingPlay = true;
         m_ttsPlayer->setMedia(QMediaContent(QUrl::fromLocalFile(audioFilePath)));
         m_ttsPlayer->play();
+    });
+
+    // 播放结束 → 清 flag 和 media，彻底防止窗口聚焦时重播
+    connect(m_ttsPlayer, &QMediaPlayer::stateChanged,
+            this, [this](QMediaPlayer::State state) {
+        if (state == QMediaPlayer::StoppedState && m_ttsPendingPlay) {
+            m_ttsPendingPlay = false;
+            m_ttsPlayer->setMedia(QMediaContent());
+        }
     });
 
     // TTS 错误日志
@@ -427,9 +437,11 @@ void MainWindow::onSendMessage(const QString &text)
 
     // 重置 TTS 状态（中止上一轮朗读，预连接为新一轮做准备）
     m_ttsProvider->abort();
+    m_ttsPendingPlay = false;
     m_ttsPlayer->stop();
+    m_ttsPlayer->setMedia(QMediaContent());
     if (m_settings->ttsEnabled()) {
-        m_ttsProvider->preConnect();  // 重置 m_aborted 并重新建连
+        m_ttsProvider->preConnect();
     }
 
     // 发起流式请求（立绘启用时使用包含情绪指令的 system prompt）

@@ -79,4 +79,5 @@ private:
     // TTS 相关
     EdgeTTSProvider *m_ttsProvider = nullptr;    // Edge TTS 语音合成器
     QMediaPlayer *m_ttsPlayer = nullptr;         // MP3 音频播放器
+    bool m_ttsPendingPlay = false;               // 合成完成等待播放的标志
 };

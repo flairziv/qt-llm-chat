@@ -110,7 +110,7 @@ void EdgeTTSProvider::connectWs()
     }
     m_ready = false;
 
-    qDebug() << "[TTS] Connecting to Edge TTS WebSocket...";
+    // qDebug() << "[TTS] Connecting to Edge TTS WebSocket...";
     m_ws = new QWebSocket(QString(), QWebSocketProtocol::VersionLatest, this);
 
     connect(m_ws, &QWebSocket::connected,
@@ -167,14 +167,14 @@ void EdgeTTSProvider::preConnect()
 
 void EdgeTTSProvider::synthesize(const QString &text, const QString &voiceName)
 {
-    qDebug() << "[TTS] synthesize() called, text length:" << text.length()
-             << "current state - ready:" << m_ready
-             << "synthesizing:" << m_synthesizing
-             << "ws state:" << (m_ws ? m_ws->state() : -1);
+    // qDebug() << "[TTS] synthesize() called, text length:" << text.length()
+    //          << "current state - ready:" << m_ready
+    //          << "synthesizing:" << m_synthesizing
+    //          << "ws state:" << (m_ws ? m_ws->state() : -1);
 
     // 若上次合成仍在进行，先中止并重连
     if (m_synthesizing) {
-        qDebug() << "[TTS] Aborting previous synthesis";
+        // qDebug() << "[TTS] Aborting previous synthesis";
         abort();
     }
 
@@ -185,7 +185,7 @@ void EdgeTTSProvider::synthesize(const QString &text, const QString &voiceName)
 
     // 检查连接状态：若 WebSocket 已断开，重新建连
     if (m_ws && m_ws->state() != QAbstractSocket::ConnectedState) {
-        qDebug() << "[TTS] WebSocket not connected, reconnecting...";
+        // qDebug() << "[TTS] WebSocket not connected, reconnecting...";
         m_ready = false;
         m_ws->deleteLater();
         m_ws = nullptr;
@@ -193,7 +193,7 @@ void EdgeTTSProvider::synthesize(const QString &text, const QString &voiceName)
 
     if (m_ready && m_ws) {
         // 连接已就绪 → 直接发送 SSML（零延迟）
-        qDebug() << "[TTS] Connection ready, sending SSML immediately";
+        // qDebug() << "[TTS] Connection ready, sending SSML immediately";
         m_synthesizing = true;
         m_ready = false;
         emit synthesisStarted();
@@ -201,7 +201,7 @@ void EdgeTTSProvider::synthesize(const QString &text, const QString &voiceName)
         sendSSML(text, voiceName);
     } else {
         // 需要先建连，onConnected 会自动发送 pending 的 SSML
-        qDebug() << "[TTS] Need to connect first";
+        // qDebug() << "[TTS] Need to connect first";
         connectWs();
     }
 }
@@ -233,12 +233,12 @@ void EdgeTTSProvider::abort()
  */
 void EdgeTTSProvider::onConnected()
 {
-    qDebug() << "[TTS] WebSocket connected, sending config...";
+    // qDebug() << "[TTS] WebSocket connected, sending config...";
     sendConfig();
 
     if (!m_pendingText.isEmpty()) {
         // 有待合成文本 → 立即发送 SSML
-        qDebug() << "[TTS] Sending pending SSML, text length:" << m_pendingText.length();
+        // qDebug() << "[TTS] Sending pending SSML, text length:" << m_pendingText.length();
         m_synthesizing = true;
         m_ready = false;
         emit synthesisStarted();
@@ -246,7 +246,7 @@ void EdgeTTSProvider::onConnected()
         sendSSML(m_pendingText, m_pendingVoice);
     } else {
         // 纯预连接，标记就绪
-        qDebug() << "[TTS] Connection ready (idle)";
+        // qDebug() << "[TTS] Connection ready (idle)";
         m_ready = true;
         emit connectionReady();
     }
@@ -305,8 +305,8 @@ void EdgeTTSProvider::onBinaryMessageReceived(const QByteArray &message)
     if (audioOffset < message.size()) {
         QByteArray chunk = message.mid(audioOffset);
         m_audioBuffer.append(chunk);
-        qDebug() << "[TTS] Audio chunk received, size:" << chunk.size()
-                 << "total:" << m_audioBuffer.size() << "bytes";
+        // qDebug() << "[TTS] Audio chunk received, size:" << chunk.size()
+        //          << "total:" << m_audioBuffer.size() << "bytes";
         emit audioChunkReceived(chunk);
     }
 }
@@ -324,14 +324,16 @@ void EdgeTTSProvider::onBinaryMessageReceived(const QByteArray &message)
  */
 void EdgeTTSProvider::onTextMessageReceived(const QString &message)
 {
-    if (message.contains("Path:turn.start")) {
-        qDebug() << "[TTS] turn.start received";
-    }
+    // if (message.contains("Path:turn.start")) {
+    //     qDebug() << "[TTS] turn.start received";
+    // }
     if (!message.contains("Path:turn.end"))
         return;
 
-    qDebug() << "[TTS] turn.end received, synthesis complete, total audio:" << m_audioBuffer.size() << "bytes";
+    // qDebug() << "[TTS] turn.end received, synthesis complete, total audio:" << m_audioBuffer.size() << "bytes";
     m_synthesizing = false;
+    m_pendingText.clear();      // 合成完成，清掉 pending 防止重连时重复发送
+    m_pendingVoice.clear();
 
     if (m_audioBuffer.isEmpty()) {
         emit errorOccurred("未收到任何音频数据");
@@ -352,7 +354,7 @@ void EdgeTTSProvider::onTextMessageReceived(const QString &message)
     file.write(m_audioBuffer);
     file.close();
 
-    qDebug() << "[TTS] MP3 file written:" << filePath;
+    // qDebug() << "[TTS] MP3 file written:" << filePath;
 
     // 保持连接，标记就绪，下次 synthesize() 可零延迟复用
     m_ready = true;
@@ -363,10 +365,10 @@ void EdgeTTSProvider::onTextMessageReceived(const QString &message)
 /** @brief 连接断开回调。若合成中则报错，否则自动重连保持就绪。 */
 void EdgeTTSProvider::onDisconnected()
 {
-    qDebug() << "[TTS] WebSocket disconnected, was synthesizing:" << m_synthesizing
-             << "was ready:" << m_ready
-             << "close code:" << (m_ws ? m_ws->closeCode() : 0)
-             << "close reason:" << (m_ws ? m_ws->closeReason() : "N/A");
+    // qDebug() << "[TTS] WebSocket disconnected, was synthesizing:" << m_synthesizing
+    //          << "was ready:" << m_ready
+    //          << "close code:" << (m_ws ? m_ws->closeCode() : 0)
+    //          << "close reason:" << (m_ws ? m_ws->closeReason() : "N/A");
 
     m_ready = false;
     if (m_ws) {
