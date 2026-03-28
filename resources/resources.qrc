@@ -1,9 +1,0 @@
-<RCC>
-    <qresource prefix="/">
-        <file alias="style/style.qss">style/style.qss</file>
-        <file>imgs/tray.ico</file>
-        <file>imgs/favicon.ico</file>
-        <file>imgs/Miku.gif</file>
-        <file>imgs/Miku.png</file>
-    </qresource>
-</RCC>
