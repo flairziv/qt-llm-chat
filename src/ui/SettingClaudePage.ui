@@ -159,6 +159,21 @@ QScrollArea { background: transparent; border: none; }
             </item>
             <item>
              <property name="text">
+              <string>claude-haiku-4-5-20251001</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>claude-opus-4-5-20251101</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>claude-sonnet-4-5-20250929</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
               <string>claude-opus-4-5-20250514</string>
              </property>
             </item>
@@ -170,11 +185,6 @@ QScrollArea { background: transparent; border: none; }
             <item>
              <property name="text">
               <string>claude-sonnet-4-20250514</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>claude-haiku-4-5-20251001</string>
              </property>
             </item>
             <item>
@@ -205,6 +215,16 @@ QScrollArea { background: transparent; border: none; }
             <item>
              <property name="text">
               <string>claude-3-haiku-20240307</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>claude-2.1</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>claude-2.0</string>
              </property>
             </item>
            </widget>

@@ -149,6 +149,76 @@ QScrollArea { background: transparent; border: none; }
            <widget class="ElaComboBox" name="comboBox_model">
             <item>
              <property name="text">
+              <string>gpt-5.4</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-5.4-mini</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-5.4-nano</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-5.3</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-5.2</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-5.2-pro</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-5.1</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-5.1-mini</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-5.1-codex</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-5</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-5-mini</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-5-nano</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-5-pro</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-5-codex</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
               <string>gpt-4.1</string>
              </property>
             </item>
@@ -174,12 +244,52 @@ QScrollArea { background: transparent; border: none; }
             </item>
             <item>
              <property name="text">
-              <string>gpt-4.5-preview</string>
+              <string>gpt-4o-search-preview</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-4o-mini-search-preview</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-4o-audio-preview</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-4o-2024-11-20</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-4o-2024-08-06</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-4o-2024-05-13</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-4o-mini-2024-07-18</string>
              </property>
             </item>
             <item>
              <property name="text">
               <string>gpt-4-turbo</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-4-turbo-2024-04-09</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gpt-4</string>
              </property>
             </item>
             <item>
@@ -190,6 +300,11 @@ QScrollArea { background: transparent; border: none; }
             <item>
              <property name="text">
               <string>o4-mini</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>o3-pro</string>
              </property>
             </item>
             <item>
@@ -209,12 +324,12 @@ QScrollArea { background: transparent; border: none; }
             </item>
             <item>
              <property name="text">
-              <string>o1-mini</string>
+              <string>o1-pro</string>
              </property>
             </item>
             <item>
              <property name="text">
-              <string>o1-pro</string>
+              <string>o1-mini</string>
              </property>
             </item>
            </widget>
