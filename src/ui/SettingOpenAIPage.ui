@@ -26,8 +26,8 @@ QScrollArea { background: transparent; border: none; }
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>780</width>
-        <height>480</height>
+        <width>788</width>
+        <height>488</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,0,0,0,0,1">
@@ -154,17 +154,7 @@ QScrollArea { background: transparent; border: none; }
             </item>
             <item>
              <property name="text">
-              <string>gpt-5.4-mini</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>gpt-5.4-nano</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>gpt-5.3</string>
+              <string>gpt-5.3-codex</string>
              </property>
             </item>
             <item>
@@ -204,11 +194,6 @@ QScrollArea { background: transparent; border: none; }
             </item>
             <item>
              <property name="text">
-              <string>gpt-5-nano</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
               <string>gpt-5-pro</string>
              </property>
             </item>
@@ -244,47 +229,7 @@ QScrollArea { background: transparent; border: none; }
             </item>
             <item>
              <property name="text">
-              <string>gpt-4o-search-preview</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>gpt-4o-mini-search-preview</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>gpt-4o-audio-preview</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>gpt-4o-2024-11-20</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>gpt-4o-2024-08-06</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>gpt-4o-2024-05-13</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>gpt-4o-mini-2024-07-18</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
               <string>gpt-4-turbo</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>gpt-4-turbo-2024-04-09</string>
              </property>
             </item>
             <item>
