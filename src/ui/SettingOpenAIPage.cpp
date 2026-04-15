@@ -1,8 +1,8 @@
 #include "SettingOpenAIPage.h"
 #include "ui_SettingOpenAIPage.h"
 #include "core/AppSettings.h"
-#include <QLineEdit>
 #include <QComboBox>
+#include <QLineEdit>
 
 SettingOpenAIPage::SettingOpenAIPage(AppSettings *settings, QWidget *parent)
     : QWidget(parent)
@@ -33,6 +33,18 @@ void SettingOpenAIPage::loadSettings()
         ui->comboBox_model->addItem(model);
         ui->comboBox_model->setCurrentText(model);
     }
+
+    QString reasoningEffort = m_settings->openaiReasoningEffort();
+    if (reasoningEffort.isEmpty()) {
+        reasoningEffort = "default";
+    }
+    idx = ui->comboBox_reasoning->findText(reasoningEffort);
+    if (idx >= 0) {
+        ui->comboBox_reasoning->setCurrentIndex(idx);
+    } else {
+        ui->comboBox_reasoning->addItem(reasoningEffort);
+        ui->comboBox_reasoning->setCurrentText(reasoningEffort);
+    }
 }
 
 void SettingOpenAIPage::connectAutoSave()
@@ -47,6 +59,10 @@ void SettingOpenAIPage::connectAutoSave()
     });
     connect(ui->comboBox_model, &QComboBox::currentTextChanged, this, [this](const QString &text) {
         m_settings->setOpenaiModel(text);
+        emit settingsChanged();
+    });
+    connect(ui->comboBox_reasoning, &QComboBox::currentTextChanged, this, [this](const QString &text) {
+        m_settings->setOpenaiReasoningEffort(text == "default" ? QString() : text);
         emit settingsChanged();
     });
 }

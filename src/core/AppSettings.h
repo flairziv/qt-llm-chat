@@ -47,16 +47,20 @@ public:
     void setClaudeApiKey(const QString &key);
     QString claudeBaseUrl() const;              // API 基础 URL（可配置代理）
     void setClaudeBaseUrl(const QString &url);
-    QString claudeModel() const;                // 模型名称，如 "claude-opus-4-6"
+    QString claudeModel() const;                // 妯″瀷鍚嶇О锛屽 "claude-opus-4-6"
     void setClaudeModel(const QString &model);
+    QString claudeReasoningEffort() const;      // 鎺ㄧ悊寮哄害锛屽 "low"銆?"medium"銆?"high"
+    void setClaudeReasoningEffort(const QString &effort);
 
     // --- OpenAI API 配置 ---
     QString openaiApiKey() const;               // API 密钥
     void setOpenaiApiKey(const QString &key);
     QString openaiBaseUrl() const;              // API 基础 URL（可配置代理）
     void setOpenaiBaseUrl(const QString &url);
-    QString openaiModel() const;                // 模型名称，如 "gpt-4o"
+    QString openaiModel() const;                // 妯″瀷鍚嶇О锛屽 "gpt-4o"
     void setOpenaiModel(const QString &model);
+    QString openaiReasoningEffort() const;      // 鎺ㄧ悊寮哄害锛屽 "low"銆?"medium"銆?"high"
+    void setOpenaiReasoningEffort(const QString &effort);
 
     // --- 通用配置 ---
     QString activeProvider() const;             // 当前激活的提供商："claude" 或 "openai"

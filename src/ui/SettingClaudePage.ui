@@ -30,7 +30,7 @@ QScrollArea { background: transparent; border: none; }
         <height>480</height>
        </rect>
       </property>
-      <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,0,0,0,0,1">
+      <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,0,0,0,0,0,1">
        <item>
         <widget class="ElaText" name="titleLabel">
          <property name="font">
@@ -225,6 +225,62 @@ QScrollArea { background: transparent; border: none; }
             <item>
              <property name="text">
               <string>claude-2.0</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="ElaScrollPageArea" name="reasoningArea" native="true">
+         <layout class="QHBoxLayout" name="reasoningLayout" stretch="2,3">
+          <property name="leftMargin">
+           <number>15</number>
+          </property>
+          <property name="rightMargin">
+           <number>15</number>
+          </property>
+          <item>
+           <widget class="ElaText" name="reasoningLabel">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Claude supported models use output_config.effort; Claude 4.6 also enables adaptive thinking.</string>
+            </property>
+            <property name="text">
+             <string>Reasoning</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="ElaComboBox" name="comboBox_reasoning">
+            <item>
+             <property name="text">
+              <string>default</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>low</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>medium</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>high</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>max</string>
              </property>
             </item>
            </widget>

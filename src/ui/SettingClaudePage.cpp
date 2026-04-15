@@ -1,8 +1,8 @@
 #include "SettingClaudePage.h"
 #include "ui_SettingClaudePage.h"
 #include "core/AppSettings.h"
-#include <QLineEdit>
 #include <QComboBox>
+#include <QLineEdit>
 
 SettingClaudePage::SettingClaudePage(AppSettings *settings, QWidget *parent)
     : QWidget(parent)
@@ -33,6 +33,18 @@ void SettingClaudePage::loadSettings()
         ui->comboBox_model->addItem(model);
         ui->comboBox_model->setCurrentText(model);
     }
+
+    QString reasoningEffort = m_settings->claudeReasoningEffort();
+    if (reasoningEffort.isEmpty()) {
+        reasoningEffort = "default";
+    }
+    idx = ui->comboBox_reasoning->findText(reasoningEffort);
+    if (idx >= 0) {
+        ui->comboBox_reasoning->setCurrentIndex(idx);
+    } else {
+        ui->comboBox_reasoning->addItem(reasoningEffort);
+        ui->comboBox_reasoning->setCurrentText(reasoningEffort);
+    }
 }
 
 void SettingClaudePage::connectAutoSave()
@@ -47,6 +59,10 @@ void SettingClaudePage::connectAutoSave()
     });
     connect(ui->comboBox_model, &QComboBox::currentTextChanged, this, [this](const QString &text) {
         m_settings->setClaudeModel(text);
+        emit settingsChanged();
+    });
+    connect(ui->comboBox_reasoning, &QComboBox::currentTextChanged, this, [this](const QString &text) {
+        m_settings->setClaudeReasoningEffort(text == "default" ? QString() : text);
         emit settingsChanged();
     });
 }

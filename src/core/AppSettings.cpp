@@ -70,6 +70,8 @@ void AppSettings::setClaudeBaseUrl(const QString &url) { m_settings->setValue("C
 /// 模型名称，如 "claude-opus-4-6"、"claude-sonnet-4-20250514"
 QString AppSettings::claudeModel() const { return m_settings->value("Claude/model", "claude-sonnet-4-20250514").toString(); }
 void AppSettings::setClaudeModel(const QString &model) { m_settings->setValue("Claude/model", model); m_settings->sync(); emit settingsChanged(); }
+QString AppSettings::claudeReasoningEffort() const { return m_settings->value("Claude/reasoning_effort").toString(); }
+void AppSettings::setClaudeReasoningEffort(const QString &effort) { m_settings->setValue("Claude/reasoning_effort", effort); m_settings->sync(); emit settingsChanged(); }
 
 // ============================================================
 // OpenAI API 配置
@@ -87,6 +89,8 @@ void AppSettings::setOpenaiBaseUrl(const QString &url) { m_settings->setValue("O
 /// 模型名称，如 "gpt-4o"、"gpt-4o-mini"
 QString AppSettings::openaiModel() const { return m_settings->value("OpenAI/model", "gpt-4o").toString(); }
 void AppSettings::setOpenaiModel(const QString &model) { m_settings->setValue("OpenAI/model", model); m_settings->sync(); emit settingsChanged(); }
+QString AppSettings::openaiReasoningEffort() const { return m_settings->value("OpenAI/reasoning_effort").toString(); }
+void AppSettings::setOpenaiReasoningEffort(const QString &effort) { m_settings->setValue("OpenAI/reasoning_effort", effort); m_settings->sync(); emit settingsChanged(); }
 
 // ============================================================
 // 通用配置

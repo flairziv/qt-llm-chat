@@ -240,6 +240,7 @@ void MainWindow::createProvider()
             m_settings->claudeApiKey(),
             m_settings->claudeBaseUrl(),
             m_settings->claudeModel(),
+            m_settings->claudeReasoningEffort(),
             this
         );
     } else {
@@ -248,6 +249,7 @@ void MainWindow::createProvider()
             m_settings->openaiApiKey(),
             m_settings->openaiBaseUrl(),
             m_settings->openaiModel(),
+            m_settings->openaiReasoningEffort(),
             this
         );
     }
