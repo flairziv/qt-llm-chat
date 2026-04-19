@@ -97,3 +97,13 @@ add_custom_command(TARGET LLMChat POST_BUILD
         "${CMAKE_SOURCE_DIR}/third_party/ElaWidgetTools/bin/ElaWidgetTools.dll"
         "$<TARGET_FILE_DIR:LLMChat>/ElaWidgetTools.dll"
 )
+
+# Copy OpenSSL DLLs (required by Qt5Network for HTTPS/TLS)
+add_custom_command(TARGET LLMChat POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/third_party/openssl/bin/libssl-1_1-x64.dll"
+        "$<TARGET_FILE_DIR:LLMChat>/libssl-1_1-x64.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/third_party/openssl/bin/libcrypto-1_1-x64.dll"
+        "$<TARGET_FILE_DIR:LLMChat>/libcrypto-1_1-x64.dll"
+)
