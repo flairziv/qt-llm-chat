@@ -211,9 +211,9 @@ void TachieWindow::changeExpression(const QString &emotionName)
 void TachieWindow::playFadeTransition(const QPixmap &newPixmap)
 {
     // 将当前图片复制到旧表情图层
-    const QPixmap *currentPix = m_labelCurrent->pixmap();
-    if (currentPix) {
-        m_labelPrevious->setPixmap(*currentPix);
+    QPixmap currentPix = m_labelCurrent->pixmap(Qt::ReturnByValue);
+    if (!currentPix.isNull()) {
+        m_labelPrevious->setPixmap(currentPix);
     }
     m_labelCurrent->hide();
     m_labelCurrent->setPixmap(newPixmap);
@@ -298,8 +298,8 @@ void TachieWindow::playAnimation(int animationType)
         break;
     }
     case 3: {  // 放大（缩放到 120%）
-        const QPixmap *pix = m_labelCurrent->pixmap();
-        if (!pix) break;
+        QPixmap pix = m_labelCurrent->pixmap(Qt::ReturnByValue);
+        if (pix.isNull()) break;
         int w = m_labelCurrent->width();
         int h = m_labelCurrent->height();
         int endW = w * 1.2;
@@ -421,6 +421,26 @@ void TachieWindow::setScale(int scalePercent)
 QStringList TachieWindow::availableEmotions() const
 {
     return m_emotionList;
+}
+
+/**
+ * @brief 切换到另一个立绘角色资源目录
+ *
+ * 清空现有表情列表和动画映射，重新加载新目录的配置，
+ * 并显示默认情绪（"正常"或列表第一项）。
+ */
+void TachieWindow::setResourceDir(const QString &resourceDir)
+{
+    if (resourceDir == m_resourceDir) return;
+    m_resourceDir = resourceDir;
+    m_emotionList.clear();
+    m_animMap.clear();
+    loadConfig();
+    if (!m_emotionList.isEmpty()) {
+        QString target = m_emotionList.contains(m_defaultEmotion)
+            ? m_defaultEmotion : m_emotionList.first();
+        changeExpression(target);
+    }
 }
 
 // ============================================================================

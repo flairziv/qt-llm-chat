@@ -56,6 +56,9 @@ public:
     /** @brief 获取当前显示的情绪名称 */
     QString currentEmotion() const { return m_currentEmotion; }
 
+    /** @brief 切换立绘资源目录（更换角色） */
+    void setResourceDir(const QString &resourceDir);
+
 signals:
     /** @brief 拖拽释放后发射，通知外部保存位置 */
     void positionChanged(int x, int y);
