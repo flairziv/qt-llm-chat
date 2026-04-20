@@ -152,6 +152,7 @@ void MainWindow::setupPages()
 
     // 聊天主页面 —— 一级导航节点
     m_chatPage = new ChatPage(this);
+    m_chatPage->updateRoleNames(m_settings->userName(), m_settings->assistantName());
     addPageNode("Chat", m_chatPage, ElaIconType::House);
 
     // 根据持久化设置恢复上次选择的 Provider
@@ -587,6 +588,7 @@ void MainWindow::onProviderError(const QString &error)
 void MainWindow::onSettingsChanged()
 {
     createProvider();
+    m_chatPage->updateRoleNames(m_settings->userName(), m_settings->assistantName());
 
     // 立绘角色可能变化，更新资源目录
     if (m_tachieWindow) {
