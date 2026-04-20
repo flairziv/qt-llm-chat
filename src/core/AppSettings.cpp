@@ -150,6 +150,13 @@ QString AppSettings::ttsVoice() const { return m_settings->value("TTS/voice", "z
 void AppSettings::setTtsVoice(const QString &voice) { m_settings->setValue("TTS/voice", voice); m_settings->sync(); }
 
 // ============================================================
+// 立绘角色目录
+// ============================================================
+
+QString AppSettings::tachieResourceDir() const { return m_settings->value("Tachie/resource_dir", "ATRI0.3").toString(); }
+void AppSettings::setTachieResourceDir(const QString &dir) { m_settings->setValue("Tachie/resource_dir", dir); m_settings->sync(); }
+
+// ============================================================
 // 背景图配置
 // ============================================================
 // INI 文件中的 [Background] 分组

@@ -86,6 +86,10 @@ public:
     QString ttsVoice() const;                   // TTS 语音名称（默认 "zh-CN-XiaoxiaoNeural"）
     void setTtsVoice(const QString &voice);
 
+    // --- 立绘角色 ---
+    QString tachieResourceDir() const;          // 立绘资源目录名
+    void setTachieResourceDir(const QString &dir);
+
     // --- 背景图配置 ---
     int backgroundPaintMode() const;            // 绘制模式：0=Normal, 1=Pixmap, 2=Movie（默认 2）
     void setBackgroundPaintMode(int mode);
