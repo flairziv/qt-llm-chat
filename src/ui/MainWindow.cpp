@@ -295,7 +295,7 @@ void MainWindow::setupTachie()
     m_tachieEnabled = m_settings->tachieEnabled();
     if (!m_tachieEnabled) return;
 
-    QString resDir = QCoreApplication::applicationDirPath() + "/config/ATRI0.3";
+    QString resDir = QCoreApplication::applicationDirPath() + "/config/" + m_settings->tachieResourceDir();
     m_tachieWindow = new TachieWindow(resDir);
 
     // 恢复记忆的窗口位置
@@ -559,6 +559,12 @@ void MainWindow::onProviderError(const QString &error)
 void MainWindow::onSettingsChanged()
 {
     createProvider();
+
+    // 立绘角色可能变化，更新资源目录
+    if (m_tachieWindow) {
+        QString newDir = QCoreApplication::applicationDirPath() + "/config/" + m_settings->tachieResourceDir();
+        m_tachieWindow->setResourceDir(newDir);
+    }
 }
 
 /** @brief 用户在 ChatPage 切换 Provider（Claude ↔ OpenAI），重建 Provider */
