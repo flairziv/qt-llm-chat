@@ -120,7 +120,7 @@ void MainWindow::setupPages()
 
     setWindowPaintMode(static_cast<ElaWindowType::PaintMode>(m_settings->backgroundPaintMode()));
     setIsCentralStackedWidgetTransparent(true);
-    setWindowButtonFlag(ElaAppBarType::ThemeChangeButtonHint, false);
+    setWindowButtonFlag(ElaAppBarType::ThemeChangeButtonHint, true);
 
     // 聊天主页面 —— 一级导航节点
     m_chatPage = new ChatPage(this);
