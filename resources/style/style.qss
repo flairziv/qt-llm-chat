@@ -1,7 +1,7 @@
 /* ============================================
-   LLMChat - Theme-neutral QSS
-   Uses transparent / rgba colors so ElaTheme
-   dark/light mode paints through correctly.
+   LLMChat - Theme-adaptive QSS
+   Uses transparent / rgba / inherit colors
+   so ElaTheme dark/light mode works correctly.
    ============================================ */
 
 /* === Left Panel === */
@@ -111,6 +111,7 @@ QListWidget::item:hover {
 }
 #sendButton:disabled {
     background-color: rgba(128, 128, 128, 0.2);
+    color: rgba(128, 128, 128, 0.5);
 }
 
 /* === Status Label === */
@@ -141,7 +142,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
     background: transparent;
 }
 
-/* === Settings Dialog === */
+/* === Settings Pages === */
 QTabWidget::pane {
     border: 1px solid rgba(128, 128, 128, 0.2);
     border-radius: 4px;
@@ -171,3 +172,21 @@ QTabBar::tab:selected {
 QSplitter::handle {
     background-color: rgba(128, 128, 128, 0.15);
 }
+
+/* === Global text inputs — 确保暗色主题下文字可见 ===
+   ElaWidgetTools 控件会自动适配主题，但标准 Qt 控件
+   （QPlainTextEdit / QSpinBox / QDoubleSpinBox / QLineEdit / QTextEdit）
+   需要设置透明背景和继承前景色。 */
+QPlainTextEdit, QSpinBox, QDoubleSpinBox, QLineEdit {
+    background-color: rgba(128, 128, 128, 0.06);
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: 6px;
+    padding: 4px 8px;
+}
+QPlainTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QLineEdit:focus {
+    border-color: #10a37f;
+}
+
+/* === Settings Page Text ===
+   ElaText/ElaLineEdit 等 ElaWidgetTools 控件跟随主题自动变色，
+   这里不设置 color，让主题系统接管。 */
