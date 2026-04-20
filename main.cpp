@@ -3,9 +3,48 @@
 #include <QMenu>
 #include <QIcon>
 #include <QFile>
+#include <QAbstractNativeEventFilter>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 #include "ElaApplication.h"
 #include "ui/MainWindow.h"
 #include "core/AppSettings.h"
+
+#ifdef Q_OS_WIN
+// 全局热键 ID
+static const int HOTKEY_ID = 0x1234;
+
+/**
+ * @brief 监听 Win32 WM_HOTKEY 事件，唤醒主窗口
+ */
+class GlobalHotkeyFilter : public QAbstractNativeEventFilter
+{
+public:
+    GlobalHotkeyFilter(MainWindow *window) : m_window(window) {}
+    bool nativeEventFilter(const QByteArray &eventType, void *message, long *result) override
+    {
+        Q_UNUSED(eventType)
+        Q_UNUSED(result)
+        MSG *msg = static_cast<MSG*>(message);
+        if (msg->message == WM_HOTKEY && msg->wParam == HOTKEY_ID) {
+            if (m_window->isVisible() && m_window->isActiveWindow()) {
+                m_window->hide();
+            } else {
+                m_window->show();
+                m_window->raise();
+                m_window->activateWindow();
+            }
+            return true;
+        }
+        return false;
+    }
+private:
+    MainWindow *m_window;
+};
+#endif
 
 int main(int argc, char *argv[])
 {
