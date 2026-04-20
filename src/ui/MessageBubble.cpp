@@ -5,8 +5,10 @@
 // 构造函数
 // ============================================================================
 
-MessageBubble::MessageBubble(Role role, const QString &content, QWidget *parent)
-    : QWidget(parent), m_role(role), m_content(content)
+MessageBubble::MessageBubble(Role role, const QString &content, QWidget *parent,
+                             const QString &userName, const QString &assistantName)
+    : QWidget(parent), m_role(role), m_content(content),
+      m_userName(userName), m_assistantName(assistantName)
 {
     setupUI();
 }
@@ -37,7 +39,7 @@ void MessageBubble::setupUI()
     outerLayout->setSpacing(4);
 
     // --- 角色标签 ---
-    m_roleLabel = new QLabel(m_role == User ? "You" : "Assistant");
+    m_roleLabel = new QLabel(m_role == User ? m_userName : m_assistantName);
     m_roleLabel->setObjectName(m_role == User ? "userRoleLabel" : "assistantRoleLabel");
     QFont roleFont = m_roleLabel->font();
     roleFont.setBold(true);
@@ -108,3 +110,10 @@ void MessageBubble::setContent(const QString &content)
 
 QString MessageBubble::content() const { return m_content; }
 MessageBubble::Role MessageBubble::role() const { return m_role; }
+
+void MessageBubble::setRoleName(const QString &name)
+{
+    if (m_role == User) m_userName = name;
+    else m_assistantName = name;
+    m_roleLabel->setText(name);
+}

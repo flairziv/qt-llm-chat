@@ -47,10 +47,13 @@ public:
      * @param parent   父 widget
      */
     explicit MessageBubble(Role role, const QString &content,
-                           QWidget *parent = nullptr);
+                           QWidget *parent = nullptr,
+                           const QString &userName = "You",
+                           const QString &assistantName = "Assistant");
 
     void appendText(const QString &text);   // 追加文本（用于流式 token 填充）
     void setContent(const QString &content); // 替换全部文本内容
+    void setRoleName(const QString &name);  // 更新角色标签显示名
     QString content() const;                 // 获取当前文本内容
     Role role() const;                       // 获取消息角色
 
@@ -59,6 +62,8 @@ private:
 
     Role m_role;                // 消息角色
     QString m_content;          // 消息文本内容
+    QString m_userName;         // 用户显示名
+    QString m_assistantName;    // 助手显示名
     QLabel *m_roleLabel;        // 角色标签（"You" / "Assistant"）
     QLabel *m_contentLabel;     // 消息文本标签
     QWidget *m_bubbleWidget;    // 气泡容器 widget（用于设置背景样式）
