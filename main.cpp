@@ -99,8 +99,20 @@ int main(int argc, char *argv[])
 
     sysTray.show();
 
+#ifdef Q_OS_WIN
+    // 注册全局热键 Ctrl+Alt+L 唤醒/隐藏主窗口
+    GlobalHotkeyFilter hotkeyFilter(&mainWindow);
+    app.installNativeEventFilter(&hotkeyFilter);
+    RegisterHotKey(nullptr, HOTKEY_ID, MOD_CONTROL | MOD_ALT, 'L');
+#endif
 
     mainWindow.show();
 
-    return app.exec();
+    int ret = app.exec();
+
+#ifdef Q_OS_WIN
+    UnregisterHotKey(nullptr, HOTKEY_ID);
+#endif
+
+    return ret;
 }
