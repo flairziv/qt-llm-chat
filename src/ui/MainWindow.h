@@ -80,4 +80,8 @@ private:
     EdgeTTSProvider *m_ttsProvider = nullptr;    // Edge TTS 语音合成器
     QMediaPlayer *m_ttsPlayer = nullptr;         // MP3 音频播放器
     bool m_ttsPendingPlay = false;               // 合成完成等待播放的标志
+
+    // 嘴型同步计时器（TTS 播放期间定时切换立绘表情）
+    class QTimer *m_lipSyncTimer = nullptr;
+    QString m_lipSyncEmotion;  // 播放前的情绪，播放结束后恢复
 };

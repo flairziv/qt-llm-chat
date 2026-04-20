@@ -16,6 +16,8 @@
 #include <QShortcut>
 #include <QMediaPlayer>
 #include <QDebug>
+#include <QTimer>
+#include <QRandomGenerator>
 
 // ============================================================================
 // 构造 / 析构
@@ -53,6 +55,32 @@ MainWindow::MainWindow(AppSettings *settings, QWidget *parent)
             m_ttsPendingPlay = false;
             m_ttsPlayer->setMedia(QMediaContent());
         }
+        // 嘴型同步：播放时启动计时器，停止时停止
+        if (state == QMediaPlayer::PlayingState && m_tachieWindow && m_lipSyncTimer) {
+            m_lipSyncEmotion = m_tachieWindow->currentEmotion();
+            m_lipSyncTimer->start(200);
+        } else if (state == QMediaPlayer::StoppedState && m_lipSyncTimer && m_lipSyncTimer->isActive()) {
+            m_lipSyncTimer->stop();
+            if (m_tachieWindow && !m_lipSyncEmotion.isEmpty()) {
+                m_tachieWindow->changeExpression(m_lipSyncEmotion);
+            }
+        }
+    });
+
+    // 嘴型同步计时器：每 200ms 随机切换表情（需要立绘资源支持）
+    m_lipSyncTimer = new QTimer(this);
+    connect(m_lipSyncTimer, &QTimer::timeout, this, [this]() {
+        if (!m_tachieWindow) return;
+        QStringList emotions = m_tachieWindow->availableEmotions();
+        // 优先使用 "说话"/"兴奋" 表情模拟嘴型，否则在现有表情中选两个切换
+        static const QStringList mouthEmotions = {"说话", "兴奋", "高兴", "正常"};
+        QStringList available;
+        for (const QString &e : mouthEmotions) {
+            if (emotions.contains(e)) available.append(e);
+        }
+        if (available.size() < 2) return;  // 不够 2 个表情无法模拟
+        int idx = QRandomGenerator::global()->bounded(available.size());
+        m_tachieWindow->changeExpression(available[idx]);
     });
 
     // TTS 错误日志
