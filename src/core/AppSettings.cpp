@@ -150,6 +150,19 @@ QString AppSettings::ttsVoice() const { return m_settings->value("TTS/voice", "z
 void AppSettings::setTtsVoice(const QString &voice) { m_settings->setValue("TTS/voice", voice); m_settings->sync(); }
 
 // ============================================================
+// 角色名称配置
+// ============================================================
+// INI 文件中的 [General] 分组
+
+/// 用户显示名，默认 "You"
+QString AppSettings::userName() const { return m_settings->value("General/user_name", "You").toString(); }
+void AppSettings::setUserName(const QString &name) { m_settings->setValue("General/user_name", name); m_settings->sync(); }
+
+/// 助手显示名，默认 "Assistant"
+QString AppSettings::assistantName() const { return m_settings->value("General/assistant_name", "Assistant").toString(); }
+void AppSettings::setAssistantName(const QString &name) { m_settings->setValue("General/assistant_name", name); m_settings->sync(); }
+
+// ============================================================
 // 立绘角色目录
 // ============================================================
 

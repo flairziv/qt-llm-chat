@@ -86,6 +86,12 @@ public:
     QString ttsVoice() const;                   // TTS 语音名称（默认 "zh-CN-XiaoxiaoNeural"）
     void setTtsVoice(const QString &voice);
 
+    // --- 角色名称配置 ---
+    QString userName() const;                   // 用户显示名（默认 "You"）
+    void setUserName(const QString &name);
+    QString assistantName() const;              // 助手显示名（默认 "Assistant"）
+    void setAssistantName(const QString &name);
+
     // --- 立绘角色 ---
     QString tachieResourceDir() const;          // 立绘资源目录名
     void setTachieResourceDir(const QString &dir);
