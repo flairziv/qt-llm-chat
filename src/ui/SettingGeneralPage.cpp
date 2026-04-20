@@ -21,6 +21,7 @@ SettingGeneralPage::SettingGeneralPage(AppSettings *settings, QWidget *parent)
 {
     ui->setupUi(this);
     ui->scrollArea->viewport()->setAutoFillBackground(false);
+    setupRoleNameSection();
     setupBackgroundSection();
     setupTTSSection();
     loadSettings();
@@ -30,6 +31,70 @@ SettingGeneralPage::SettingGeneralPage(AppSettings *settings, QWidget *parent)
 SettingGeneralPage::~SettingGeneralPage()
 {
     delete ui;
+}
+
+/**
+ * @brief 构建 "Role Names" 设置区域
+ *
+ * 包含两个输入框：User Name / Assistant Name，
+ * 修改后自动保存并发射 settingsChanged 信号，
+ * MainWindow 收到后刷新所有气泡标签。
+ */
+void SettingGeneralPage::setupRoleNameSection()
+{
+    QVBoxLayout *layout = ui->verticalLayout_2;
+    int insertIdx = layout->indexOf(ui->noteLabel);
+
+    // --- Section Header ---
+    ElaText *sectionRole = new ElaText("Role Names", this);
+    QFont boldFont;
+    boldFont.setBold(true);
+    sectionRole->setFont(boldFont);
+    layout->insertWidget(insertIdx++, sectionRole);
+
+    // --- User Name ---
+    ElaScrollPageArea *userArea = new ElaScrollPageArea(this);
+    QHBoxLayout *userLayout = new QHBoxLayout(userArea);
+    userLayout->setContentsMargins(15, 0, 15, 0);
+
+    ElaText *userLabel = new ElaText("User Name", this);
+    userLabel->setTextPixelSize(15);
+    userLayout->addWidget(userLabel);
+    userLayout->addStretch();
+
+    m_userNameEdit = new ElaLineEdit(this);
+    m_userNameEdit->setFixedWidth(200);
+    m_userNameEdit->setText(m_settings->userName());
+    userLayout->addWidget(m_userNameEdit);
+
+    connect(m_userNameEdit, &QLineEdit::textChanged, this, [this](const QString &text) {
+        m_settings->setUserName(text);
+        emit settingsChanged();
+    });
+
+    layout->insertWidget(insertIdx++, userArea);
+
+    // --- Assistant Name ---
+    ElaScrollPageArea *assistantArea = new ElaScrollPageArea(this);
+    QHBoxLayout *assistantLayout = new QHBoxLayout(assistantArea);
+    assistantLayout->setContentsMargins(15, 0, 15, 0);
+
+    ElaText *assistantLabel = new ElaText("Assistant Name", this);
+    assistantLabel->setTextPixelSize(15);
+    assistantLayout->addWidget(assistantLabel);
+    assistantLayout->addStretch();
+
+    m_assistantNameEdit = new ElaLineEdit(this);
+    m_assistantNameEdit->setFixedWidth(200);
+    m_assistantNameEdit->setText(m_settings->assistantName());
+    assistantLayout->addWidget(m_assistantNameEdit);
+
+    connect(m_assistantNameEdit, &QLineEdit::textChanged, this, [this](const QString &text) {
+        m_settings->setAssistantName(text);
+        emit settingsChanged();
+    });
+
+    layout->insertWidget(insertIdx++, assistantArea);
 }
 
 void SettingGeneralPage::setupBackgroundSection()

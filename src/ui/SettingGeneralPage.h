@@ -24,6 +24,7 @@ private:
     void connectAutoSave();
     void setupBackgroundSection();
     void setupTTSSection();
+    void setupRoleNameSection();
 
     Ui::SettingGeneralPage *ui;
     AppSettings *m_settings;
@@ -31,4 +32,6 @@ private:
     ElaLineEdit *m_moviePathEdit = nullptr;
     ElaToggleSwitch *m_ttsEnabledSwitch = nullptr;
     ElaComboBox *m_ttsVoiceCombo = nullptr;
+    ElaLineEdit *m_userNameEdit = nullptr;
+    ElaLineEdit *m_assistantNameEdit = nullptr;
 };
