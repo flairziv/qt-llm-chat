@@ -215,7 +215,8 @@ void ChatPage::onSendClicked()
 void ChatPage::addMessageBubble(const QString &role, const QString &content)
 {
     MessageBubble::Role bubbleRole = (role == "user") ? MessageBubble::User : MessageBubble::Assistant;
-    auto *bubble = new MessageBubble(bubbleRole, content, m_messageContainer);
+    auto *bubble = new MessageBubble(bubbleRole, content, m_messageContainer,
+                                     m_userName, m_assistantName);
 
     // 插入到 stretch 之前（count-1 是 stretch 的位置）
     int idx = m_messageLayout->count() - 1;
@@ -333,4 +334,16 @@ void ChatPage::setProviderIndex(int index)
 QString ChatPage::currentProviderData() const
 {
     return m_providerCombo->currentData().toString();
+}
+
+/**
+ * @brief 更新显示名称，同时刷新所有已有气泡的角色标签
+ */
+void ChatPage::updateRoleNames(const QString &userName, const QString &assistantName)
+{
+    m_userName = userName;
+    m_assistantName = assistantName;
+    for (MessageBubble *b : m_bubbles) {
+        b->setRoleName(b->role() == MessageBubble::User ? userName : assistantName);
+    }
 }

@@ -63,6 +63,9 @@ public:
     void setProviderIndex(int index);          // 设置 Provider 下拉框选中项
     QString currentProviderData() const;       // 获取当前选中的 Provider 标识
 
+    // ===== 角色显示名 =====
+    void updateRoleNames(const QString &userName, const QString &assistantName);  // 更新所有气泡的角色标签
+
 signals:
     void sendMessageRequested(const QString &text);      // 用户请求发送消息
     void sessionSelected(const QString &id);             // 用户点击选中某个会话
@@ -91,4 +94,8 @@ private:
     QLabel *m_statusLabel;             // 状态提示标签（"Thinking..." / "Error: ..."）
 
     QList<MessageBubble*> m_bubbles;   // 当前显示的所有消息气泡指针列表
+
+    // 角色显示名（默认 "You"/"Assistant"，可通过 updateRoleNames 更新）
+    QString m_userName = "You";
+    QString m_assistantName = "Assistant";
 };
