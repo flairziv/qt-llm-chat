@@ -25,6 +25,7 @@ private:
     void setupBackgroundSection();
     void setupTTSSection();
     void setupRoleNameSection();
+    void setupPromptTemplatesSection();
 
     Ui::SettingGeneralPage *ui;
     AppSettings *m_settings;

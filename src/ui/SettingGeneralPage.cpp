@@ -22,6 +22,7 @@ SettingGeneralPage::SettingGeneralPage(AppSettings *settings, QWidget *parent)
     ui->setupUi(this);
     ui->scrollArea->viewport()->setAutoFillBackground(false);
     setupRoleNameSection();
+    setupPromptTemplatesSection();
     setupBackgroundSection();
     setupTTSSection();
     loadSettings();
@@ -95,6 +96,43 @@ void SettingGeneralPage::setupRoleNameSection()
     });
 
     layout->insertWidget(insertIdx++, assistantArea);
+}
+
+/**
+ * @brief 构建 "Prompt Templates" 设置区域
+ *
+ * 使用 QPlainTextEdit，每行一条模板。保存时按换行拆分。
+ */
+void SettingGeneralPage::setupPromptTemplatesSection()
+{
+    QVBoxLayout *layout = ui->verticalLayout_2;
+    int insertIdx = layout->indexOf(ui->noteLabel);
+
+    ElaText *section = new ElaText("Prompt Templates", this);
+    QFont boldFont; boldFont.setBold(true);
+    section->setFont(boldFont);
+    layout->insertWidget(insertIdx++, section);
+
+    ElaText *hint = new ElaText("One template per line. Applied to the prompt bar in Chat page.", this);
+    hint->setTextPixelSize(12);
+    hint->setStyleSheet("color: rgba(128,128,128,0.7);");
+    layout->insertWidget(insertIdx++, hint);
+
+    QPlainTextEdit *templatesEdit = new QPlainTextEdit(this);
+    templatesEdit->setObjectName("promptTemplatesEdit");
+    templatesEdit->setMinimumHeight(100);
+    templatesEdit->setMaximumHeight(150);
+    templatesEdit->setPlainText(m_settings->promptTemplates().join('\n'));
+    layout->insertWidget(insertIdx++, templatesEdit);
+
+    connect(templatesEdit, &QPlainTextEdit::textChanged, this, [this, templatesEdit]() {
+        QStringList lines;
+        for (const QString &line : templatesEdit->toPlainText().split('\n')) {
+            QString trimmed = line.trimmed();
+            if (!trimmed.isEmpty()) lines.append(trimmed);
+        }
+        m_settings->setPromptTemplates(lines);
+    });
 }
 
 void SettingGeneralPage::setupBackgroundSection()

@@ -2,6 +2,7 @@
 #include <QWidget>
 #include <QScrollArea>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QTextEdit>
 #include <QLabel>
 #include <QList>
@@ -10,6 +11,7 @@ class MessageBubble;
 class SessionListWidget;
 class ElaComboBox;
 class ElaPushButton;
+class AppSettings;
 struct ChatMessage;
 
 /**
@@ -39,7 +41,7 @@ class ChatPage : public QWidget
 {
     Q_OBJECT
 public:
-    explicit ChatPage(QWidget *parent = nullptr);
+    explicit ChatPage(AppSettings *settings, QWidget *parent = nullptr);
 
     // ===== 消息管理 =====
     void addMessageBubble(const QString &role, const QString &content);  // 添加一个消息气泡
@@ -65,6 +67,9 @@ public:
 
     // ===== 角色显示名 =====
     void updateRoleNames(const QString &userName, const QString &assistantName);  // 更新所有气泡的角色标签
+
+    // ===== Prompt 模板 =====
+    void refreshPromptTemplates();  // 重新加载 prompt 模板栏（从 AppSettings 读取）
 
 signals:
     void sendMessageRequested(const QString &text);      // 用户请求发送消息
@@ -94,6 +99,10 @@ private:
     QLabel *m_statusLabel;             // 状态提示标签（"Thinking..." / "Error: ..."）
 
     QList<MessageBubble*> m_bubbles;   // 当前显示的所有消息气泡指针列表
+
+    // AppSettings 引用（用于读取 prompt 模板、监听变化）
+    AppSettings *m_settings = nullptr;
+    QHBoxLayout *m_promptLayout = nullptr;
 
     // 角色显示名（默认 "You"/"Assistant"，可通过 updateRoleNames 更新）
     QString m_userName = "You";

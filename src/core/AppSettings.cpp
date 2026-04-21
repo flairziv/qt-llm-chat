@@ -163,6 +163,32 @@ QString AppSettings::assistantName() const { return m_settings->value("General/a
 void AppSettings::setAssistantName(const QString &name) { m_settings->setValue("General/assistant_name", name); m_settings->sync(); }
 
 // ============================================================
+// Prompt 模板
+// ============================================================
+
+static const QStringList DEFAULT_PROMPT_TEMPLATES = {
+    "Translate to English",
+    "Translate to Chinese",
+    "Summarize",
+    "Explain Code",
+    "Fix Bug",
+    "Optimize Code"
+};
+
+QStringList AppSettings::promptTemplates() const
+{
+    QStringList t = m_settings->value("PromptTemplates/list").toStringList();
+    return t.isEmpty() ? DEFAULT_PROMPT_TEMPLATES : t;
+}
+
+void AppSettings::setPromptTemplates(const QStringList &templates)
+{
+    m_settings->setValue("PromptTemplates/list", templates);
+    m_settings->sync();
+    emit promptTemplatesChanged();
+}
+
+// ============================================================
 // 立绘角色目录
 // ============================================================
 

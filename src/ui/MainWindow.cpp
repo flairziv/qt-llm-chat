@@ -151,7 +151,7 @@ void MainWindow::setupPages()
     setWindowButtonFlag(ElaAppBarType::ThemeChangeButtonHint, true);
 
     // 聊天主页面 —— 一级导航节点
-    m_chatPage = new ChatPage(this);
+    m_chatPage = new ChatPage(m_settings, this);
     m_chatPage->updateRoleNames(m_settings->userName(), m_settings->assistantName());
     addPageNode("Chat", m_chatPage, ElaIconType::House);
 

@@ -92,6 +92,10 @@ public:
     QString assistantName() const;              // 助手显示名（默认 "Assistant"）
     void setAssistantName(const QString &name);
 
+    // --- Prompt 模板 ---
+    QStringList promptTemplates() const;
+    void setPromptTemplates(const QStringList &templates);
+
     // --- 立绘角色 ---
     QString tachieResourceDir() const;          // 立绘资源目录名
     void setTachieResourceDir(const QString &dir);
@@ -115,6 +119,9 @@ signals:
      * 确保后续请求使用最新的 API Key、模型等配置。
      */
     void settingsChanged();
+
+    /** @brief Prompt 模板列表被修改 */
+    void promptTemplatesChanged();
 
 private:
     QSettings *m_settings;  // Qt 配置读写对象（INI 格式）

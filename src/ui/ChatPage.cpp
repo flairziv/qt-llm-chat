@@ -2,6 +2,7 @@
 #include "MessageBubble.h"
 #include "SessionListWidget.h"
 #include "core/ChatSession.h"
+#include "core/AppSettings.h"
 #include <ElaComboBox.h>
 #include <ElaPushButton.h>
 #include <QScrollBar>
@@ -14,11 +15,16 @@
 // 构造函数
 // ============================================================================
 
-ChatPage::ChatPage(QWidget *parent)
-    : QWidget(parent)
+ChatPage::ChatPage(AppSettings *settings, QWidget *parent)
+    : QWidget(parent), m_settings(settings)
 {
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     setupUI();
+    refreshPromptTemplates();
+    if (m_settings) {
+        connect(m_settings, &AppSettings::promptTemplatesChanged,
+                this, &ChatPage::refreshPromptTemplates);
+    }
 }
 
 // ============================================================================
@@ -120,6 +126,15 @@ void ChatPage::setupUI()
     m_statusLabel->setObjectName("statusLabel");
     m_statusLabel->hide();
     rightLayout->addWidget(m_statusLabel);
+
+    // --- Prompt 模板标签栏 ---
+    QWidget *promptBar = new QWidget(rightPanel);
+    promptBar->setObjectName("promptBar");
+    m_promptLayout = new QHBoxLayout(promptBar);
+    m_promptLayout->setContentsMargins(16, 4, 16, 0);
+    m_promptLayout->setSpacing(6);
+    m_promptLayout->addStretch();
+    rightLayout->addWidget(promptBar, 0);
 
     // --- 输入栏 ---
     QWidget *inputBar = new QWidget;
@@ -345,5 +360,38 @@ void ChatPage::updateRoleNames(const QString &userName, const QString &assistant
     m_assistantName = assistantName;
     for (MessageBubble *b : m_bubbles) {
         b->setRoleName(b->role() == MessageBubble::User ? userName : assistantName);
+    }
+}
+
+/** @brief 重新加载 Prompt 模板栏（从 AppSettings 读取） */
+void ChatPage::refreshPromptTemplates()
+{
+    if (!m_promptLayout || !m_settings) return;
+
+    // 移除旧按钮（保留末尾的 stretch）
+    while (m_promptLayout->count() > 1) {
+        QLayoutItem *item = m_promptLayout->takeAt(0);
+        if (item->widget()) item->widget()->deleteLater();
+        delete item;
+    }
+
+    QWidget *promptBar = m_promptLayout->parentWidget();
+    for (const QString &tmpl : m_settings->promptTemplates()) {
+        ElaPushButton *btn = new ElaPushButton(tmpl, promptBar);
+        btn->setObjectName("promptTag");
+        btn->setFixedHeight(28);
+        connect(btn, &ElaPushButton::clicked, this, [this, tmpl]() {
+            QString current = m_inputEdit->toPlainText().trimmed();
+            if (current.isEmpty()) {
+                m_inputEdit->setPlainText(tmpl + ": ");
+            } else {
+                m_inputEdit->setPlainText(current + "\n" + tmpl + ": ");
+            }
+            m_inputEdit->setFocus();
+            QTextCursor cursor = m_inputEdit->textCursor();
+            cursor.movePosition(QTextCursor::End);
+            m_inputEdit->setTextCursor(cursor);
+        });
+        m_promptLayout->insertWidget(m_promptLayout->count() - 1, btn);
     }
 }

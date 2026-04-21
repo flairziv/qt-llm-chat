@@ -190,3 +190,17 @@ QPlainTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QLineEdit:focus {
 /* === Settings Page Text ===
    ElaText/ElaLineEdit 等 ElaWidgetTools 控件跟随主题自动变色，
    这里不设置 color，让主题系统接管。 */
+
+/* === Prompt Template Tags === */
+#promptTag {
+    background: rgba(128, 128, 128, 0.08);
+    border: 1px solid rgba(128, 128, 128, 0.15);
+    border-radius: 14px;
+    padding: 0 12px;
+    font-size: 12px;
+}
+#promptTag:hover {
+    background: rgba(16, 163, 127, 0.12);
+    border-color: #10a37f;
+    color: #10a37f;
+}
