@@ -5,16 +5,44 @@
 #include <QDateTime>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QByteArray>
+
+/**
+ * @brief 附件数据结构（图片、文档或文本文件）
+ *
+ * type        - 附件类型：Image（图片）、Document（PDF 等文档）、TextFile（文本文件）
+ * fileName    - 原始文件名
+ * mimeType    - MIME 类型，如 "image/png"、"application/pdf"
+ * fileData    - 文件原始字节（用于图片/文档的 base64 编码发送）
+ * textContent - 文本文件的内容（仅 TextFile 类型使用）
+ */
+struct Attachment {
+    enum Type { Image, Document, TextFile };
+    Type type;
+    QString fileName;
+    QString mimeType;
+    QByteArray fileData;
+    QString textContent;
+
+    QJsonObject toJson() const;
+    static Attachment fromJson(const QJsonObject &obj);
+};
 
 /**
  * @brief 单条聊天消息的数据结构
  *
- * role    - 消息角色："user"（用户发送）或 "assistant"（AI 回复）
- * content - 消息文本内容
+ * role        - 消息角色："user"（用户发送）或 "assistant"（AI 回复）
+ * content     - 消息文本内容
+ * attachments - 附件列表（图片、文件等）
+ * timestamp   - 消息时间戳
+ * favorite    - 是否收藏
  */
 struct ChatMessage {
     QString role;
     QString content;
+    QList<Attachment> attachments;
+    QDateTime timestamp;
+    bool favorite = false;
 };
 
 /**
@@ -58,10 +86,17 @@ public:
     QString modelName() const;          // 如 "claude-opus-4-6"、"gpt-4o"
     void setModelName(const QString &name);
 
+    // --- 文件夹分组 ---
+    QString folder() const;
+    void setFolder(const QString &folder);
+
     // --- 消息管理 ---
     QList<ChatMessage> messages() const;
+    ChatMessage messageAt(int index) const;         // 获取指定索引的消息
     void addMessage(const ChatMessage &msg);
     void updateLastAssistantMessage(const QString &content);
+    void setMessageFavorite(int index, bool favorite);  // 切换指定消息的收藏状态
+    void truncateFrom(int index);                   // 删除 index 及之后的所有消息
     void clearMessages();
 
     // --- JSON 序列化 ---
@@ -92,6 +127,7 @@ private:
     QDateTime m_updatedAt;          // 最后更新时间
     QString m_providerName;         // API 提供商名称
     QString m_modelName;            // 模型名称
+    QString m_folder;               // 所属文件夹
     QList<ChatMessage> m_messages;  // 消息历史列表
 
     /**

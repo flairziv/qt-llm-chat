@@ -1,5 +1,49 @@
 #include "ChatSession.h"
 #include <QUuid>
+#include <QJsonDocument>
+
+// ============================================================
+// Attachment 序列化
+// ============================================================
+
+/**
+ * @brief 将附件序列化为 JSON 对象
+ *
+ * 文本文件保存 textContent 字段（纯文本），
+ * 图片和文档保存 fileData 字段（base64 编码的二进制数据）。
+ */
+QJsonObject Attachment::toJson() const
+{
+    QJsonObject obj;
+    obj["type"] = static_cast<int>(type);
+    obj["fileName"] = fileName;
+    obj["mimeType"] = mimeType;
+    if (type == TextFile) {
+        obj["textContent"] = textContent;
+    } else {
+        // 图片/文档：将原始字节 base64 编码后存储为字符串
+        obj["fileData"] = QString::fromLatin1(fileData.toBase64());
+    }
+    return obj;
+}
+
+/**
+ * @brief 从 JSON 对象反序列化附件
+ */
+Attachment Attachment::fromJson(const QJsonObject &obj)
+{
+    Attachment a;
+    a.type = static_cast<Attachment::Type>(obj["type"].toInt());
+    a.fileName = obj["fileName"].toString();
+    a.mimeType = obj["mimeType"].toString();
+    if (a.type == Attachment::TextFile) {
+        a.textContent = obj["textContent"].toString();
+    } else {
+        // base64 字符串还原为原始字节
+        a.fileData = QByteArray::fromBase64(obj["fileData"].toString().toLatin1());
+    }
+    return a;
+}
 
 // ============================================================
 // 构造函数
@@ -61,6 +105,9 @@ void ChatSession::setProviderName(const QString &name) { m_providerName = name; 
 QString ChatSession::modelName() const { return m_modelName; }
 void ChatSession::setModelName(const QString &name) { m_modelName = name; }
 
+QString ChatSession::folder() const { return m_folder; }
+void ChatSession::setFolder(const QString &folder) { m_folder = folder; }
+
 // ============================================================
 // 消息管理
 // ============================================================
@@ -76,12 +123,16 @@ QList<ChatMessage> ChatSession::messages() const { return m_messages; }
  */
 void ChatSession::addMessage(const ChatMessage &msg)
 {
-    m_messages.append(msg);
+    ChatMessage stored = msg;
+    if (!stored.timestamp.isValid()) {
+        stored.timestamp = QDateTime::currentDateTime();
+    }
+    m_messages.append(stored);
     m_updatedAt = QDateTime::currentDateTime();
-    emit messageAdded(msg);
+    emit messageAdded(stored);
 
     // 第一条用户消息 → 自动生成标题
-    if (msg.role == "user" && m_messages.size() == 1) {
+    if (stored.role == "user" && m_messages.size() == 1) {
         autoGenerateTitle();
     }
 }
@@ -110,6 +161,46 @@ void ChatSession::updateLastAssistantMessage(const QString &content)
 void ChatSession::clearMessages()
 {
     m_messages.clear();
+    m_updatedAt = QDateTime::currentDateTime();
+}
+
+/**
+ * @brief 获取指定索引的消息
+ * @param index 消息在列表中的索引（从 0 开始）
+ * @return 对应的 ChatMessage，索引越界时返回空消息
+ */
+ChatMessage ChatSession::messageAt(int index) const
+{
+    if (index >= 0 && index < m_messages.size()) {
+        return m_messages.at(index);
+    }
+    return ChatMessage();
+}
+
+/**
+ * @brief 更新指定消息的收藏状态
+ */
+void ChatSession::setMessageFavorite(int index, bool favorite)
+{
+    if (index < 0 || index >= m_messages.size()) return;
+    m_messages[index].favorite = favorite;
+    m_updatedAt = QDateTime::currentDateTime();
+}
+
+/**
+ * @brief 删除指定索引及之后的所有消息（用于编辑/撤回）
+ *
+ * 例如消息列表为 [user, assistant, user, assistant]，
+ * truncateFrom(2) 后变为 [user, assistant]。
+ *
+ * @param index 起始删除位置（该位置的消息也会被删除）
+ */
+void ChatSession::truncateFrom(int index)
+{
+    if (index < 0 || index >= m_messages.size()) return;
+    while (m_messages.size() > index) {
+        m_messages.removeLast();
+    }
     m_updatedAt = QDateTime::currentDateTime();
 }
 
@@ -168,12 +259,26 @@ QJsonObject ChatSession::toJson() const
     obj["updated_at"] = m_updatedAt.toString(Qt::ISODate);
     obj["provider"] = m_providerName;
     obj["model"] = m_modelName;
+    obj["folder"] = m_folder;
 
     QJsonArray msgArray;
     for (const auto &msg : m_messages) {
         QJsonObject m;
         m["role"] = msg.role;
         m["content"] = msg.content;
+        if (msg.timestamp.isValid()) {
+            m["timestamp"] = msg.timestamp.toString(Qt::ISODate);
+        }
+        if (msg.favorite) {
+            m["favorite"] = true;
+        }
+        if (!msg.attachments.isEmpty()) {
+            QJsonArray attArray;
+            for (const auto &att : msg.attachments) {
+                attArray.append(att.toJson());
+            }
+            m["attachments"] = attArray;
+        }
         msgArray.append(m);
     }
     obj["messages"] = msgArray;
@@ -201,6 +306,7 @@ ChatSession* ChatSession::fromJson(const QJsonObject &obj, QObject *parent)
     session->m_updatedAt = QDateTime::fromString(obj["updated_at"].toString(), Qt::ISODate);
     session->m_providerName = obj["provider"].toString();
     session->m_modelName = obj["model"].toString();
+    session->m_folder = obj["folder"].toString();
 
     // 逐条恢复消息列表（直接写入 m_messages，不触发信号）
     QJsonArray msgArray = obj["messages"].toArray();
@@ -209,6 +315,16 @@ ChatSession* ChatSession::fromJson(const QJsonObject &obj, QObject *parent)
         ChatMessage msg;
         msg.role = m["role"].toString();
         msg.content = m["content"].toString();
+        if (m.contains("timestamp")) {
+            msg.timestamp = QDateTime::fromString(m["timestamp"].toString(), Qt::ISODate);
+        }
+        msg.favorite = m["favorite"].toBool(false);
+        if (m.contains("attachments")) {
+            QJsonArray attArray = m["attachments"].toArray();
+            for (const auto &attVal : attArray) {
+                msg.attachments.append(Attachment::fromJson(attVal.toObject()));
+            }
+        }
         session->m_messages.append(msg);
     }
     return session;
