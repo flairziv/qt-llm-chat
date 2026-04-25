@@ -6,9 +6,11 @@
 // ============================================================================
 
 MessageBubble::MessageBubble(Role role, const QString &content, QWidget *parent,
-                             const QString &userName, const QString &assistantName)
+                             const QString &userName, const QString &assistantName,
+                             int index, bool favorite)
     : QWidget(parent), m_role(role), m_content(content),
-      m_userName(userName), m_assistantName(assistantName)
+      m_userName(userName), m_assistantName(assistantName),
+      m_index(index), m_favorite(favorite)
 {
     setupUI();
 }
@@ -39,12 +41,13 @@ void MessageBubble::setupUI()
     outerLayout->setSpacing(4);
 
     // --- 角色标签 ---
-    m_roleLabel = new QLabel(m_role == User ? m_userName : m_assistantName);
+    m_roleLabel = new QLabel;
     m_roleLabel->setObjectName(m_role == User ? "userRoleLabel" : "assistantRoleLabel");
     QFont roleFont = m_roleLabel->font();
     roleFont.setBold(true);
     roleFont.setPointSize(10);
     m_roleLabel->setFont(roleFont);
+    refreshRoleLabel();  // 根据 m_favorite 决定是否前缀 "★ "
 
     // --- 气泡容器 ---
     m_bubbleWidget = new QWidget;
@@ -115,5 +118,39 @@ void MessageBubble::setRoleName(const QString &name)
 {
     if (m_role == User) m_userName = name;
     else m_assistantName = name;
-    m_roleLabel->setText(name);
+    refreshRoleLabel();
+}
+
+// ============================================================================
+// 索引与收藏状态
+// ============================================================================
+
+int MessageBubble::messageIndex() const { return m_index; }
+void MessageBubble::setMessageIndex(int index) { m_index = index; }
+bool MessageBubble::isFavorite() const { return m_favorite; }
+
+/**
+ * @brief 切换收藏状态并刷新角色标签
+ *
+ * 收藏时角色名前会拼上 "★ " 前缀，无需额外控件。
+ */
+void MessageBubble::setFavorite(bool favorite)
+{
+    if (m_favorite == favorite) return;
+    m_favorite = favorite;
+    refreshRoleLabel();
+}
+
+/**
+ * @brief 根据当前角色与收藏状态重建角色标签文本
+ *
+ * 收藏  ：" ★ 名字"   （前缀星号）
+ * 未收藏：" 名字"
+ *
+ * 由构造、setRoleName、setFavorite 共同调用，保持单一来源。
+ */
+void MessageBubble::refreshRoleLabel()
+{
+    QString name = (m_role == User) ? m_userName : m_assistantName;
+    m_roleLabel->setText(m_favorite ? QStringLiteral("★ ") + name : name);
 }
