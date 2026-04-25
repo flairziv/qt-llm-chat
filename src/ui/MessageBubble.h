@@ -69,6 +69,9 @@ public:
     bool isFavorite() const;              // 当前收藏状态
     void setFavorite(bool favorite);      // 切换收藏；同步刷新角色标签上的 ★ 指示器
 
+private slots:
+    void onContextMenu(const QPoint &pos);  // 右键自定义菜单（Copy 等操作）
+
 private:
     void setupUI();  // 根据角色构建不同对齐方式的布局
     void refreshRoleLabel();  // 根据 m_favorite + 角色名重建角色标签文本（"★ 名字"）

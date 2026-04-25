@@ -1,5 +1,8 @@
 #include "MessageBubble.h"
 #include <QHBoxLayout>
+#include <QMenu>
+#include <QApplication>
+#include <QClipboard>
 
 // ============================================================================
 // 构造函数
@@ -84,6 +87,12 @@ void MessageBubble::setupUI()
         outerLayout->addWidget(m_roleLabel);
         outerLayout->addLayout(bubbleRow);
     }
+
+    // --- 右键自定义菜单 ---
+    // 启用整张气泡 widget 的自定义右键菜单（含角色标签和气泡内容区）
+    setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(this, &QWidget::customContextMenuRequested,
+            this, &MessageBubble::onContextMenu);
 }
 
 // ============================================================================
@@ -153,4 +162,33 @@ void MessageBubble::refreshRoleLabel()
 {
     QString name = (m_role == User) ? m_userName : m_assistantName;
     m_roleLabel->setText(m_favorite ? QStringLiteral("★ ") + name : name);
+}
+
+// ============================================================================
+// 右键菜单
+// ============================================================================
+
+/**
+ * @brief 在鼠标右键位置弹出自定义菜单
+ *
+ * 当前菜单包含：
+ *   - Copy：将气泡文本内容复制到系统剪贴板
+ *
+ * 后续将追加 Toggle Favorite / Delete from here / Edit 等操作。
+ *
+ * 注意：m_contentLabel 设置了 TextSelectableByMouse，自带文本选中行为，
+ * 不会拦截右键事件 —— 整个 MessageBubble widget 的 customContextMenuRequested
+ * 信号仍能正常触发本槽函数。
+ */
+void MessageBubble::onContextMenu(const QPoint &pos)
+{
+    QMenu menu(this);
+    QAction *copyAction = menu.addAction(tr("Copy"));
+
+    QAction *selected = menu.exec(mapToGlobal(pos));  // 阻塞式弹出菜单
+    if (!selected) return;
+
+    if (selected == copyAction) {
+        QApplication::clipboard()->setText(m_content);
+    }
 }
