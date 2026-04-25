@@ -244,6 +244,8 @@ void ChatPage::addMessageBubble(const QString &role, const QString &content,
     // 气泡右键菜单 → 透传到 ChatPage 的统一信号（最终由 MainWindow 接管）
     connect(bubble, &MessageBubble::favoriteToggleRequested,
             this, &ChatPage::messageFavoriteToggleRequested);
+    connect(bubble, &MessageBubble::deleteFromHereRequested,
+            this, &ChatPage::messageDeleteFromHereRequested);
 
     // 插入到 stretch 之前（count-1 是 stretch 的位置）
     int idx = m_messageLayout->count() - 1;

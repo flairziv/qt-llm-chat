@@ -50,6 +50,7 @@ private slots:
     void onProviderSwitched(const QString &providerName);
     void onSettingsChanged();
     void onMessageFavoriteToggle(int index);   // 收藏/取消收藏单条消息
+    void onMessageDeleteFromHere(int index);   // 删除该消息及其后的全部消息
 
 private:
     void setupPages();

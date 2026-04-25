@@ -203,6 +203,8 @@ void MainWindow::setupConnections()
     connect(m_chatPage, &ChatPage::providerSwitched, this, &MainWindow::onProviderSwitched);
     connect(m_chatPage, &ChatPage::messageFavoriteToggleRequested,
             this, &MainWindow::onMessageFavoriteToggle);
+    connect(m_chatPage, &ChatPage::messageDeleteFromHereRequested,
+            this, &MainWindow::onMessageDeleteFromHere);
 
     // === 设置页变更信号 ===
     connect(m_claudePage, &SettingClaudePage::settingsChanged, this, &MainWindow::onSettingsChanged);
@@ -629,4 +631,28 @@ void MainWindow::onMessageFavoriteToggle(int index)
     session->setMessageFavorite(index, newFav);
     m_sessionManager->saveSession(session);
     m_chatPage->setBubbleFavorite(index, newFav);
+}
+
+/**
+ * @brief 从指定索引开始删除消息（包含该索引），并刷新气泡列表
+ *
+ * 流程：
+ *   1. 流式响应中拒绝操作（避免与正在写入的最后一条 assistant 消息冲突）
+ *   2. 校验索引和活跃会话
+ *   3. 调 ChatSession::truncateFrom 移除该索引及其后所有消息
+ *   4. 立即落盘
+ *   5. 用 ChatPage::loadMessages 重建气泡列表（一次清空再重新装填，
+ *      索引重新连续，比逐个 removeWidget 更稳妥）
+ */
+void MainWindow::onMessageDeleteFromHere(int index)
+{
+    if (m_isStreaming) return;
+    if (index < 0) return;
+    ChatSession *session = m_sessionManager->activeSession();
+    if (!session) return;
+    if (index >= session->messages().size()) return;
+
+    session->truncateFrom(index);
+    m_sessionManager->saveSession(session);
+    m_chatPage->loadMessages(session->messages());
 }

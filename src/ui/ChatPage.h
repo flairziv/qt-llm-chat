@@ -80,6 +80,7 @@ signals:
     void newChatRequested();                              // 用户点击"新建聊天"
     void providerSwitched(const QString &providerName);  // 用户切换 Provider
     void messageFavoriteToggleRequested(int index);      // 用户在气泡右键菜单切换收藏
+    void messageDeleteFromHereRequested(int index);      // 用户在气泡右键菜单删除该消息及其后
 
 private slots:
     void onSendClicked();  // 发送按钮点击处理
