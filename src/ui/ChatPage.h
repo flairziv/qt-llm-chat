@@ -50,6 +50,7 @@ public:
     void replaceLastBubbleContent(const QString &text);  // 替换最后一个气泡的完整文本
     void clearMessages();                            // 清空所有消息气泡
     void loadMessages(const QList<ChatMessage> &messages);  // 批量加载消息记录
+    void setBubbleFavorite(int index, bool favorite);  // 按索引刷新气泡的 ★ 显示
 
     // ===== UI 状态控制 =====
     void setInputEnabled(bool enabled);  // 启用/禁用输入框和发送按钮

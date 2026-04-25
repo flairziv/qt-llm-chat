@@ -201,6 +201,8 @@ void MainWindow::setupConnections()
     connect(m_chatPage, &ChatPage::sessionSelected, this, &MainWindow::onSessionSelected);
     connect(m_chatPage, &ChatPage::sessionDeleteRequested, this, &MainWindow::onDeleteChat);
     connect(m_chatPage, &ChatPage::providerSwitched, this, &MainWindow::onProviderSwitched);
+    connect(m_chatPage, &ChatPage::messageFavoriteToggleRequested,
+            this, &MainWindow::onMessageFavoriteToggle);
 
     // === 设置页变更信号 ===
     connect(m_claudePage, &SettingClaudePage::settingsChanged, this, &MainWindow::onSettingsChanged);
@@ -603,4 +605,28 @@ void MainWindow::onProviderSwitched(const QString &providerName)
     Q_UNUSED(providerName)
     if (m_isStreaming) return;
     createProvider();
+}
+
+/**
+ * @brief 切换单条消息的收藏状态
+ *
+ * 流程：
+ *   1. 校验索引合法且当前有活跃会话
+ *   2. 读取当前 favorite 状态并取反
+ *   3. 写入 ChatSession 数据层并立即落盘
+ *   4. 通知 ChatPage 刷新对应气泡的 ★ 指示器
+ *
+ * 不阻塞流式状态：收藏只触碰元数据，不影响进行中的请求。
+ */
+void MainWindow::onMessageFavoriteToggle(int index)
+{
+    if (index < 0) return;  // 自动分配前的占位气泡（理论上不会进入这里）
+    ChatSession *session = m_sessionManager->activeSession();
+    if (!session) return;
+    if (index >= session->messages().size()) return;
+
+    bool newFav = !session->messageAt(index).favorite;
+    session->setMessageFavorite(index, newFav);
+    m_sessionManager->saveSession(session);
+    m_chatPage->setBubbleFavorite(index, newFav);
 }

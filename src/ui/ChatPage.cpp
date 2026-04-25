@@ -228,16 +228,18 @@ void ChatPage::onSendClicked()
  * 这样气泡始终紧贴顶部排列，底部弹簧负责填充剩余空间。
  *
  * @param index    该消息在 ChatSession 消息列表中的索引（用于联动右键操作；
- *                 -1 表示未指定，气泡的右键菜单会发出 -1，上层应忽略）
+ *                 < 0 时自动按当前 m_bubbles.size() 顺序分配，保证发送消息时
+ *                 新建的 user/assistant 气泡也带正确索引）
  * @param favorite 该消息当前的收藏状态（决定气泡上 ★ 是否显示）
  */
 void ChatPage::addMessageBubble(const QString &role, const QString &content,
                                 int index, bool favorite)
 {
+    int realIndex = (index >= 0) ? index : m_bubbles.size();
     MessageBubble::Role bubbleRole = (role == "user") ? MessageBubble::User : MessageBubble::Assistant;
     auto *bubble = new MessageBubble(bubbleRole, content, m_messageContainer,
                                      m_userName, m_assistantName,
-                                     index, favorite);
+                                     realIndex, favorite);
 
     // 气泡右键菜单 → 透传到 ChatPage 的统一信号（最终由 MainWindow 接管）
     connect(bubble, &MessageBubble::favoriteToggleRequested,
@@ -295,6 +297,22 @@ void ChatPage::loadMessages(const QList<ChatMessage> &messages)
     for (int i = 0; i < messages.size(); ++i) {
         const auto &msg = messages.at(i);
         addMessageBubble(msg.role, msg.content, i, msg.favorite);
+    }
+}
+
+/**
+ * @brief 按消息索引刷新气泡的收藏 ★ 显示
+ *
+ * 由 MainWindow 在更新 ChatSession 后调用，使数据层和 UI 保持一致。
+ * 找不到匹配索引时静默返回（如气泡尚未生成或索引不在当前列表中）。
+ */
+void ChatPage::setBubbleFavorite(int index, bool favorite)
+{
+    for (MessageBubble *b : m_bubbles) {
+        if (b->messageIndex() == index) {
+            b->setFavorite(favorite);
+            return;
+        }
     }
 }
 

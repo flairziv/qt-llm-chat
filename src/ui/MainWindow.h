@@ -49,6 +49,7 @@ private slots:
     void onProviderError(const QString &error);
     void onProviderSwitched(const QString &providerName);
     void onSettingsChanged();
+    void onMessageFavoriteToggle(int index);   // 收藏/取消收藏单条消息
 
 private:
     void setupPages();
