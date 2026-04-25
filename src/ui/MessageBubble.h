@@ -79,6 +79,15 @@ signals:
      */
     void favoriteToggleRequested(int index);
 
+    /**
+     * @brief 用户在右键菜单中点击 "Delete from here"
+     *
+     * 含义：从该消息（含本条）开始，会话末尾的所有消息都将被删除。
+     * 仅传出索引；实际删除由上层（ChatPage → MainWindow）调用
+     * ChatSession::truncateFrom() 完成，并触发气泡列表重建。
+     */
+    void deleteFromHereRequested(int index);
+
 private slots:
     void onContextMenu(const QPoint &pos);  // 右键自定义菜单（Copy 等操作）
 
