@@ -44,7 +44,8 @@ public:
     explicit ChatPage(AppSettings *settings, QWidget *parent = nullptr);
 
     // ===== 消息管理 =====
-    void addMessageBubble(const QString &role, const QString &content);  // 添加一个消息气泡
+    void addMessageBubble(const QString &role, const QString &content,
+                          int index = -1, bool favorite = false);  // 添加一个消息气泡
     void appendToLastBubble(const QString &token);  // 向最后一个气泡追加文本（流式填充）
     void replaceLastBubbleContent(const QString &text);  // 替换最后一个气泡的完整文本
     void clearMessages();                            // 清空所有消息气泡
@@ -77,6 +78,7 @@ signals:
     void sessionDeleteRequested(const QString &id);      // 用户请求删除某个会话
     void newChatRequested();                              // 用户点击"新建聊天"
     void providerSwitched(const QString &providerName);  // 用户切换 Provider
+    void messageFavoriteToggleRequested(int index);      // 用户在气泡右键菜单切换收藏
 
 private slots:
     void onSendClicked();  // 发送按钮点击处理

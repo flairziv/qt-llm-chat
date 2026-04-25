@@ -226,12 +226,22 @@ void ChatPage::onSendClicked()
  *
  * 新气泡插入到 m_messageLayout 的倒数第二个位置（最后一个是 stretch），
  * 这样气泡始终紧贴顶部排列，底部弹簧负责填充剩余空间。
+ *
+ * @param index    该消息在 ChatSession 消息列表中的索引（用于联动右键操作；
+ *                 -1 表示未指定，气泡的右键菜单会发出 -1，上层应忽略）
+ * @param favorite 该消息当前的收藏状态（决定气泡上 ★ 是否显示）
  */
-void ChatPage::addMessageBubble(const QString &role, const QString &content)
+void ChatPage::addMessageBubble(const QString &role, const QString &content,
+                                int index, bool favorite)
 {
     MessageBubble::Role bubbleRole = (role == "user") ? MessageBubble::User : MessageBubble::Assistant;
     auto *bubble = new MessageBubble(bubbleRole, content, m_messageContainer,
-                                     m_userName, m_assistantName);
+                                     m_userName, m_assistantName,
+                                     index, favorite);
+
+    // 气泡右键菜单 → 透传到 ChatPage 的统一信号（最终由 MainWindow 接管）
+    connect(bubble, &MessageBubble::favoriteToggleRequested,
+            this, &ChatPage::messageFavoriteToggleRequested);
 
     // 插入到 stretch 之前（count-1 是 stretch 的位置）
     int idx = m_messageLayout->count() - 1;
@@ -275,12 +285,16 @@ void ChatPage::clearMessages()
 
 /**
  * @brief 批量加载消息记录（切换会话时调用）
+ *
+ * 加载时按列表顺序为每条消息分配索引（与 ChatSession::messageAt 一致），
+ * 并把消息的收藏状态同步到气泡，使 ★ 指示器与数据层保持一致。
  */
 void ChatPage::loadMessages(const QList<ChatMessage> &messages)
 {
     clearMessages();
-    for (const auto &msg : messages) {
-        addMessageBubble(msg.role, msg.content);
+    for (int i = 0; i < messages.size(); ++i) {
+        const auto &msg = messages.at(i);
+        addMessageBubble(msg.role, msg.content, i, msg.favorite);
     }
 }
 
