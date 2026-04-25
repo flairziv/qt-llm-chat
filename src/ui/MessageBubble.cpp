@@ -173,22 +173,29 @@ void MessageBubble::refreshRoleLabel()
  *
  * 当前菜单包含：
  *   - Copy：将气泡文本内容复制到系统剪贴板
+ *   - Unfavorite / Favorite：切换收藏状态（发射 favoriteToggleRequested 信号）
  *
- * 后续将追加 Toggle Favorite / Delete from here / Edit 等操作。
+ * 后续将追加 Delete from here / Edit 等操作。
  *
  * 注意：m_contentLabel 设置了 TextSelectableByMouse，自带文本选中行为，
  * 不会拦截右键事件 —— 整个 MessageBubble widget 的 customContextMenuRequested
  * 信号仍能正常触发本槽函数。
+ *
+ * 收藏切换不在本控件内直接落库：仅发出信号，由上层（ChatPage → MainWindow）
+ * 调用 ChatSession::setMessageFavorite() 后回头调本控件 setFavorite() 刷新 UI。
  */
 void MessageBubble::onContextMenu(const QPoint &pos)
 {
     QMenu menu(this);
     QAction *copyAction = menu.addAction(tr("Copy"));
+    QAction *favAction = menu.addAction(m_favorite ? tr("Unfavorite") : tr("Favorite"));
 
     QAction *selected = menu.exec(mapToGlobal(pos));  // 阻塞式弹出菜单
     if (!selected) return;
 
     if (selected == copyAction) {
         QApplication::clipboard()->setText(m_content);
+    } else if (selected == favAction) {
+        emit favoriteToggleRequested(m_index);
     }
 }

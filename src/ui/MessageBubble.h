@@ -69,6 +69,16 @@ public:
     bool isFavorite() const;              // 当前收藏状态
     void setFavorite(bool favorite);      // 切换收藏；同步刷新角色标签上的 ★ 指示器
 
+signals:
+    /**
+     * @brief 用户在右键菜单中点击 "Toggle Favorite"
+     *
+     * 仅传出当前气泡对应的消息索引；实际收藏状态变更由上层
+     * （ChatPage → MainWindow → ChatSession）完成后再回头调 setFavorite()
+     * 刷新本气泡 UI，保证数据层是单一真相来源。
+     */
+    void favoriteToggleRequested(int index);
+
 private slots:
     void onContextMenu(const QPoint &pos);  // 右键自定义菜单（Copy 等操作）
 
