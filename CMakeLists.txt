@@ -25,6 +25,7 @@ set(SOURCES
     src/ui/MessageBubble.cpp
     src/ui/SessionListWidget.cpp
     src/ui/SettingClaudePage.cpp
+    src/ui/SettingGeminiPage.cpp
     src/ui/SettingOpenAIPage.cpp
     src/ui/SettingGeneralPage.cpp
     src/ui/TachieWindow.cpp
@@ -44,6 +45,7 @@ set(HEADERS
     src/ui/MessageBubble.h
     src/ui/SessionListWidget.h
     src/ui/SettingClaudePage.h
+    src/ui/SettingGeminiPage.h
     src/ui/SettingOpenAIPage.h
     src/ui/SettingGeneralPage.h
     src/ui/TachieWindow.h
@@ -51,6 +53,7 @@ set(HEADERS
 
 set(UI_FILES
     src/ui/SettingClaudePage.ui
+    src/ui/SettingGeminiPage.ui
     src/ui/SettingOpenAIPage.ui
     src/ui/SettingGeneralPage.ui
 )
