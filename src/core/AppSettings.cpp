@@ -93,6 +93,19 @@ QString AppSettings::openaiReasoningEffort() const { return m_settings->value("O
 void AppSettings::setOpenaiReasoningEffort(const QString &effort) { m_settings->setValue("OpenAI/reasoning_effort", effort); m_settings->sync(); emit settingsChanged(); }
 
 // ============================================================
+// Gemini API 閰嶇疆
+// ============================================================
+
+QString AppSettings::geminiApiKey() const { return m_settings->value("Gemini/api_key").toString(); }
+void AppSettings::setGeminiApiKey(const QString &key) { m_settings->setValue("Gemini/api_key", key); m_settings->sync(); emit settingsChanged(); }
+
+QString AppSettings::geminiBaseUrl() const { return m_settings->value("Gemini/base_url", "https://generativelanguage.googleapis.com").toString(); }
+void AppSettings::setGeminiBaseUrl(const QString &url) { m_settings->setValue("Gemini/base_url", url); m_settings->sync(); emit settingsChanged(); }
+
+QString AppSettings::geminiModel() const { return m_settings->value("Gemini/model", "gemini-2.5-flash").toString(); }
+void AppSettings::setGeminiModel(const QString &model) { m_settings->setValue("Gemini/model", model); m_settings->sync(); emit settingsChanged(); }
+
+// ============================================================
 // 通用配置
 // ============================================================
 // INI 文件中的 [General] 分组

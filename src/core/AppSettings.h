@@ -62,6 +62,13 @@ public:
     QString openaiReasoningEffort() const;      // 鎺ㄧ悊寮哄害锛屽 "low"銆?"medium"銆?"high"
     void setOpenaiReasoningEffort(const QString &effort);
 
+    QString geminiApiKey() const;
+    void setGeminiApiKey(const QString &key);
+    QString geminiBaseUrl() const;
+    void setGeminiBaseUrl(const QString &url);
+    QString geminiModel() const;
+    void setGeminiModel(const QString &model);
+
     // --- 通用配置 ---
     QString activeProvider() const;             // 当前激活的提供商："claude" 或 "openai"
     void setActiveProvider(const QString &provider);
