@@ -15,6 +15,7 @@ set(SOURCES
     src/core/LLMProvider.cpp
     src/core/ClaudeProvider.cpp
     src/core/OpenAIProvider.cpp
+    src/core/GeminiProvider.cpp
     src/core/SSEParser.cpp
     src/core/ChatSession.cpp
     src/core/SessionManager.cpp
@@ -35,6 +36,7 @@ set(HEADERS
     src/core/LLMProvider.h
     src/core/ClaudeProvider.h
     src/core/OpenAIProvider.h
+    src/core/GeminiProvider.h
     src/core/SSEParser.h
     src/core/ChatSession.h
     src/core/SessionManager.h

@@ -7,6 +7,7 @@ class SessionManager;
 class ChatPage;
 class SettingClaudePage;
 class SettingOpenAIPage;
+class SettingGeminiPage;
 class SettingGeneralPage;
 class LLMProvider;
 class ChatSession;
@@ -70,6 +71,7 @@ private:
     ChatPage *m_chatPage;
     SettingClaudePage *m_claudePage;
     SettingOpenAIPage *m_openaiPage;
+    SettingGeminiPage *m_geminiPage;
     SettingGeneralPage *m_generalPage;
 
     // 立绘相关

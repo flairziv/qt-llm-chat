@@ -84,6 +84,7 @@ void ChatPage::setupUI()
     m_providerCombo->setObjectName("providerCombo");
     m_providerCombo->addItem("Claude", "claude");   // 显示文本, userData
     m_providerCombo->addItem("OpenAI", "openai");
+    m_providerCombo->addItem("Gemini", "gemini");
 
     m_newChatBtn = new ElaPushButton("+ New");
     m_newChatBtn->setObjectName("newChatButton");

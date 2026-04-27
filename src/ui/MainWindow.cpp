@@ -1,12 +1,14 @@
 #include "MainWindow.h"
 #include "ChatPage.h"
 #include "SettingClaudePage.h"
+#include "SettingGeminiPage.h"
 #include "SettingOpenAIPage.h"
 #include "SettingGeneralPage.h"
 #include "TachieWindow.h"
 #include "core/AppSettings.h"
 #include "core/SessionManager.h"
 #include "core/ClaudeProvider.h"
+#include "core/GeminiProvider.h"
 #include "core/OpenAIProvider.h"
 #include "core/ChatSession.h"
 #include "core/EdgeTTSProvider.h"
@@ -157,7 +159,7 @@ void MainWindow::setupPages()
 
     // 根据持久化设置恢复上次选择的 Provider
     QString activeProvider = m_settings->activeProvider();
-    int idx = (activeProvider == "openai") ? 1 : 0;
+    int idx = (activeProvider == "openai") ? 1 : (activeProvider == "gemini") ? 2 : 0;
     m_chatPage->setProviderIndex(idx);
 
     // 设置页分组 —— 可展开的二级导航
@@ -169,6 +171,9 @@ void MainWindow::setupPages()
 
     m_openaiPage = new SettingOpenAIPage(m_settings, this);
     addPageNode("OpenAI", m_openaiPage, settingsGroup, ElaIconType::Snowman);
+
+    m_geminiPage = new SettingGeminiPage(m_settings, this);
+    addPageNode("Gemini", m_geminiPage, settingsGroup, ElaIconType::Diamond);
 
     m_generalPage = new SettingGeneralPage(m_settings, this);
     addPageNode("General", m_generalPage, settingsGroup, ElaIconType::Speaker);
@@ -209,6 +214,7 @@ void MainWindow::setupConnections()
     // === 设置页变更信号 ===
     connect(m_claudePage, &SettingClaudePage::settingsChanged, this, &MainWindow::onSettingsChanged);
     connect(m_openaiPage, &SettingOpenAIPage::settingsChanged, this, &MainWindow::onSettingsChanged);
+    connect(m_geminiPage, &SettingGeminiPage::settingsChanged, this, &MainWindow::onSettingsChanged);
     connect(m_generalPage, &SettingGeneralPage::settingsChanged, this, &MainWindow::onSettingsChanged);
 
     // === SessionManager 状态变化 → 自动更新 ChatPage ===
@@ -274,6 +280,14 @@ void MainWindow::createProvider()
             m_settings->claudeBaseUrl(),
             m_settings->claudeModel(),
             m_settings->claudeReasoningEffort(),
+            this
+        );
+    } else if (providerName == "gemini") {
+        m_provider = new GeminiProvider(
+            m_nam,
+            m_settings->geminiApiKey(),
+            m_settings->geminiBaseUrl(),
+            m_settings->geminiModel(),
             this
         );
     } else {
@@ -399,8 +413,12 @@ void MainWindow::onNewChat()
     if (m_isStreaming) return;
     ChatSession *session = m_sessionManager->createSession();
     session->setProviderName(m_chatPage->currentProviderData());
-    session->setModelName(m_chatPage->currentProviderData() == "claude"
-                          ? m_settings->claudeModel() : m_settings->openaiModel());
+    const QString providerName = m_chatPage->currentProviderData();
+    session->setModelName(providerName == "claude"
+                          ? m_settings->claudeModel()
+                          : providerName == "gemini"
+                                ? m_settings->geminiModel()
+                                : m_settings->openaiModel());
     m_chatPage->clearMessages();
 }
 
@@ -447,8 +465,12 @@ void MainWindow::onSendMessage(const QString &text)
     if (!session) {
         session = m_sessionManager->createSession();
         session->setProviderName(m_chatPage->currentProviderData());
-        session->setModelName(m_chatPage->currentProviderData() == "claude"
-                              ? m_settings->claudeModel() : m_settings->openaiModel());
+        const QString providerName = m_chatPage->currentProviderData();
+        session->setModelName(providerName == "claude"
+                              ? m_settings->claudeModel()
+                              : providerName == "gemini"
+                                    ? m_settings->geminiModel()
+                                    : m_settings->openaiModel());
     }
 
     // 记录用户消息
