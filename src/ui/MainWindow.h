@@ -1,5 +1,7 @@
 #pragma once
 #include "ElaWindow.h"
+#include "core/ChatSession.h"
+
 #include <QNetworkAccessManager>
 
 class AppSettings;
@@ -44,7 +46,7 @@ private slots:
     void onNewChat();
     void onDeleteChat(const QString &sessionId);
     void onSessionSelected(const QString &sessionId);
-    void onSendMessage(const QString &text);
+    void onSendMessage(const QString &text, const QList<Attachment> &attachments);
     void onTokenReceived(const QString &token);
     void onResponseFinished(const QString &fullResponse);
     void onProviderError(const QString &error);

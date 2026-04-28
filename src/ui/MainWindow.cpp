@@ -456,7 +456,7 @@ void MainWindow::onSessionSelected(const QString &sessionId)
  * 4. 禁用输入框，显示 "Thinking..." 状态
  * 5. 调用 LLMProvider 发起流式请求
  */
-void MainWindow::onSendMessage(const QString &text)
+void MainWindow::onSendMessage(const QString &text, const QList<Attachment> &attachments)
 {
     if (m_isStreaming) return;
 
@@ -477,8 +477,9 @@ void MainWindow::onSendMessage(const QString &text)
     ChatMessage userMsg;
     userMsg.role = "user";
     userMsg.content = text;
+    userMsg.attachments = attachments;
     session->addMessage(userMsg);
-    m_chatPage->addMessageBubble("user", text);
+    m_chatPage->addMessageBubble("user", text, attachments);
 
     // 预创建空的 assistant 气泡，后续 onTokenReceived 会逐步填充
     m_chatPage->addMessageBubble("assistant", "");

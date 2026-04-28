@@ -1,134 +1,147 @@
 #include "ChatPage.h"
+
 #include "MessageBubble.h"
 #include "SessionListWidget.h"
-#include "core/ChatSession.h"
 #include "core/AppSettings.h"
+
 #include <ElaComboBox.h>
 #include <ElaPushButton.h>
-#include <QScrollBar>
-#include <QKeyEvent>
+#include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QHBoxLayout>
+#include <QKeyEvent>
+#include <QLabel>
+#include <QScrollBar>
 #include <QSplitter>
+#include <QStringList>
+#include <QTextCursor>
 #include <QTimer>
 
-// ============================================================================
-// 构造函数
-// ============================================================================
+namespace {
+
+QString attachmentSummaryText(const QList<Attachment> &attachments)
+{
+    if (attachments.isEmpty()) {
+        return {};
+    }
+
+    QStringList names;
+    names.reserve(attachments.size());
+    for (const Attachment &attachment : attachments) {
+        if (!attachment.fileName.isEmpty()) {
+            names.append(attachment.fileName);
+        }
+    }
+
+    if (names.isEmpty()) {
+        return QStringLiteral("[%1 attachment(s)]").arg(attachments.size());
+    }
+
+    return QStringLiteral("[Attachments] %1").arg(names.join(QStringLiteral(", ")));
+}
+
+QString bubbleDisplayText(const QString &content, const QList<Attachment> &attachments)
+{
+    if (attachments.isEmpty()) {
+        return content;
+    }
+
+    const QString summary = attachmentSummaryText(attachments);
+    if (content.trimmed().isEmpty()) {
+        return summary;
+    }
+
+    return content + QStringLiteral("\n\n") + summary;
+}
+
+} // namespace
 
 ChatPage::ChatPage(AppSettings *settings, QWidget *parent)
-    : QWidget(parent), m_settings(settings)
+    : QWidget(parent)
+    , m_settings(settings)
 {
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     setupUI();
     refreshPromptTemplates();
+
     if (m_settings) {
         connect(m_settings, &AppSettings::promptTemplatesChanged,
                 this, &ChatPage::refreshPromptTemplates);
     }
 }
 
-// ============================================================================
-// UI 构建
-// ============================================================================
-
-/**
- * @brief 构建聊天页面的完整 UI 布局
- *
- * 布局层级（从外到内）：
- *
- *   ChatPage (QHBoxLayout)
- *   └── QSplitter (水平方向)
- *       ├── leftPanel (固定宽度 260px)
- *       │   └── QVBoxLayout
- *       │       ├── headerLayout (QHBoxLayout)
- *       │       │   ├── m_providerCombo  ← Provider 选择
- *       │       │   └── m_newChatBtn     ← "+ New" 按钮
- *       │       └── m_sessionList        ← 会话列表（stretch=1，占满剩余空间）
- *       │
- *       └── rightPanel (自适应拉伸)
- *           └── QVBoxLayout
- *               ├── m_scrollArea (stretch=1，占满空间)
- *               │   └── m_messageContainer
- *               │       └── m_messageLayout (VBox + 底部 stretch)
- *               │           ├── MessageBubble ...
- *               │           └── <stretch> ← 气泡少时将内容推到顶部
- *               ├── m_statusLabel (隐藏，仅错误/加载时显示)
- *               └── inputBar (固定高度)
- *                   ├── m_inputEdit   ← 输入框
- *                   └── m_sendButton  ← "Send" 按钮
- */
 void ChatPage::setupUI()
 {
-    // 最外层布局：无边距，由 QSplitter 填满
     QHBoxLayout *pageLayout = new QHBoxLayout(this);
     pageLayout->setContentsMargins(0, 0, 0, 0);
     pageLayout->setSpacing(0);
 
-    // QSplitter：左右两栏可拖拽分隔
-    QSplitter *splitter = new QSplitter(Qt::Horizontal);
-    splitter->setChildrenCollapsible(false);  // 禁止拖拽到完全折叠
-    splitter->setHandleWidth(1);              // 分隔条宽度 1px
+    QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
+    splitter->setChildrenCollapsible(false);
+    splitter->setHandleWidth(1);
 
-    // ===================== 左侧面板 =====================
-    QWidget *leftPanel = new QWidget;
+    QWidget *leftPanel = new QWidget(splitter);
     leftPanel->setObjectName("leftPanel");
-    leftPanel->setFixedWidth(260);            // 固定宽度，不随窗口缩放
+    leftPanel->setFixedWidth(260);
 
     QVBoxLayout *leftLayout = new QVBoxLayout(leftPanel);
     leftLayout->setContentsMargins(8, 8, 8, 8);
     leftLayout->setSpacing(8);
 
-    // 顶部横排：Provider 下拉框 + 新建聊天按钮
     QHBoxLayout *headerLayout = new QHBoxLayout;
-    m_providerCombo = new ElaComboBox;
+    m_providerCombo = new ElaComboBox(leftPanel);
     m_providerCombo->setObjectName("providerCombo");
-    m_providerCombo->addItem("Claude", "claude");   // 显示文本, userData
+    m_providerCombo->addItem("Claude", "claude");
     m_providerCombo->addItem("OpenAI", "openai");
     m_providerCombo->addItem("Gemini", "gemini");
 
-    m_newChatBtn = new ElaPushButton("+ New");
+    m_newChatBtn = new ElaPushButton("+ New", leftPanel);
     m_newChatBtn->setObjectName("newChatButton");
 
-    headerLayout->addWidget(m_providerCombo, 1);  // stretch=1，占满剩余空间
+    headerLayout->addWidget(m_providerCombo, 1);
     headerLayout->addWidget(m_newChatBtn);
     leftLayout->addLayout(headerLayout);
 
-    // 会话列表（stretch=1，占满左侧面板剩余空间）
-    m_sessionList = new SessionListWidget;
+    m_sessionList = new SessionListWidget(leftPanel);
     leftLayout->addWidget(m_sessionList, 1);
 
-    // ===================== 右侧面板 =====================
-    QWidget *rightPanel = new QWidget;
+    QWidget *rightPanel = new QWidget(splitter);
     QVBoxLayout *rightLayout = new QVBoxLayout(rightPanel);
     rightLayout->setContentsMargins(0, 0, 0, 0);
     rightLayout->setSpacing(0);
 
-    // --- 消息滚动区域 ---
-    m_scrollArea = new QScrollArea;
-    m_scrollArea->setWidgetResizable(true);     // 内部 widget 自动适应滚动区宽度
+    m_scrollArea = new QScrollArea(rightPanel);
+    m_scrollArea->setWidgetResizable(true);
     m_scrollArea->setFrameShape(QFrame::NoFrame);
     m_scrollArea->setObjectName("chatScrollArea");
-    m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);  // 禁用水平滚动
+    m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_scrollArea->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-    // 消息容器：放置所有 MessageBubble
-    m_messageContainer = new QWidget;
+    m_messageContainer = new QWidget(m_scrollArea);
     m_messageContainer->setObjectName("messageContainer");
     m_messageLayout = new QVBoxLayout(m_messageContainer);
-    m_messageLayout->setSpacing(12);                     // 气泡间距
+    m_messageLayout->setSpacing(12);
     m_messageLayout->setContentsMargins(20, 20, 20, 20);
-    m_messageLayout->addStretch(1);  // 底部弹簧：消息少时将气泡推到顶部
+    m_messageLayout->addStretch(1);
 
     m_scrollArea->setWidget(m_messageContainer);
-    rightLayout->addWidget(m_scrollArea, 1);  // stretch=1，占满右侧主体
+    rightLayout->addWidget(m_scrollArea, 1);
 
-    // --- 状态标签（默认隐藏） ---
-    m_statusLabel = new QLabel;
+    m_statusLabel = new QLabel(rightPanel);
     m_statusLabel->setObjectName("statusLabel");
     m_statusLabel->hide();
     rightLayout->addWidget(m_statusLabel);
 
-    // --- Prompt 模板标签栏 ---
+    m_attachPreviewWidget = new QWidget(rightPanel);
+    m_attachPreviewWidget->setObjectName("attachPreviewWidget");
+    m_attachPreviewWidget->hide();
+    m_attachPreviewLayout = new QHBoxLayout(m_attachPreviewWidget);
+    m_attachPreviewLayout->setContentsMargins(16, 6, 16, 0);
+    m_attachPreviewLayout->setSpacing(8);
+    m_attachPreviewLayout->addStretch();
+    rightLayout->addWidget(m_attachPreviewWidget, 0);
+
     QWidget *promptBar = new QWidget(rightPanel);
     promptBar->setObjectName("promptBar");
     m_promptLayout = new QHBoxLayout(promptBar);
@@ -137,200 +150,275 @@ void ChatPage::setupUI()
     m_promptLayout->addStretch();
     rightLayout->addWidget(promptBar, 0);
 
-    // --- 输入栏 ---
-    QWidget *inputBar = new QWidget;
+    QWidget *inputBar = new QWidget(rightPanel);
     inputBar->setObjectName("inputBar");
     inputBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     QHBoxLayout *inputLayout = new QHBoxLayout(inputBar);
     inputLayout->setContentsMargins(16, 10, 16, 10);
 
-    m_inputEdit = new QTextEdit;
+    m_attachButton = new ElaPushButton("+", inputBar);
+    m_attachButton->setObjectName("attachButton");
+    m_attachButton->setFixedSize(44, 44);
+    m_attachButton->setToolTip("Attach image or file");
+
+    m_inputEdit = new QTextEdit(inputBar);
     m_inputEdit->setObjectName("chatInput");
     m_inputEdit->setPlaceholderText("Type a message... (Enter to send, Shift+Enter for newline)");
     m_inputEdit->setMaximumHeight(120);
     m_inputEdit->setFixedHeight(44);
-    m_inputEdit->installEventFilter(this);  // 安装事件过滤器以拦截 Enter 键
+    m_inputEdit->installEventFilter(this);
 
-    m_sendButton = new ElaPushButton("Send");
+    m_sendButton = new ElaPushButton("Send", inputBar);
     m_sendButton->setObjectName("sendButton");
     m_sendButton->setFixedSize(80, 44);
 
+    inputLayout->addWidget(m_attachButton);
     inputLayout->addWidget(m_inputEdit);
     inputLayout->addWidget(m_sendButton);
-    rightLayout->addWidget(inputBar, 0);  // stretch=0，固定在底部
+    rightLayout->addWidget(inputBar, 0);
 
-    // ===================== 组装 Splitter =====================
     splitter->addWidget(leftPanel);
     splitter->addWidget(rightPanel);
-    splitter->setStretchFactor(0, 0);  // 左侧不拉伸
-    splitter->setStretchFactor(1, 1);  // 右侧自适应拉伸
+    splitter->setStretchFactor(0, 0);
+    splitter->setStretchFactor(1, 1);
     pageLayout->addWidget(splitter);
 
-    // ===================== 信号连接 =====================
     connect(m_sendButton, &ElaPushButton::clicked, this, &ChatPage::onSendClicked);
+    connect(m_attachButton, &ElaPushButton::clicked, this, &ChatPage::onAttachClicked);
     connect(m_newChatBtn, &ElaPushButton::clicked, this, &ChatPage::newChatRequested);
     connect(m_sessionList, &SessionListWidget::sessionSelected, this, &ChatPage::sessionSelected);
     connect(m_sessionList, &SessionListWidget::sessionDeleteRequested, this, &ChatPage::sessionDeleteRequested);
-    // Provider 切换时发射信号（传递 userData 而非显示文本）
     connect(m_providerCombo, &ElaComboBox::currentTextChanged, this, [this]() {
         emit providerSwitched(m_providerCombo->currentData().toString());
     });
-
-    // 消息区内容变化时自动滚动到底部（延迟 10ms 等待布局刷新）
-    connect(m_scrollArea->verticalScrollBar(), &QScrollBar::rangeChanged,
-            this, [this]() {
+    connect(m_scrollArea->verticalScrollBar(), &QScrollBar::rangeChanged, this, [this]() {
         QTimer::singleShot(10, this, &ChatPage::scrollToBottom);
     });
 }
 
-// ============================================================================
-// 事件过滤器 —— Enter 键发送消息
-// ============================================================================
-
-/**
- * @brief 拦截输入框的键盘事件
- *
- * - Enter / Return：触发发送（等效点击 Send 按钮）
- * - Shift + Enter：插入换行（默认行为，不拦截）
- */
 bool ChatPage::eventFilter(QObject *obj, QEvent *event)
 {
     if (obj == m_inputEdit && event->type() == QEvent::KeyPress) {
-        QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
-        if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
-            if (!(keyEvent->modifiers() & Qt::ShiftModifier)) {
-                onSendClicked();
-                return true;  // 事件已处理，阻止默认换行
-            }
+        auto *keyEvent = static_cast<QKeyEvent *>(event);
+        if ((keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter)
+            && !(keyEvent->modifiers() & Qt::ShiftModifier)) {
+            onSendClicked();
+            return true;
         }
     }
-    return QWidget::eventFilter(obj, event);  // 其他事件交给父类处理
+
+    return QWidget::eventFilter(obj, event);
 }
 
-/**
- * @brief 发送按钮点击处理：提取文本、清空输入框、发射信号
- */
+void ChatPage::onAttachClicked()
+{
+    const QStringList filePaths = QFileDialog::getOpenFileNames(this, "Select attachments");
+    for (const QString &filePath : filePaths) {
+        addAttachmentFromFile(filePath);
+    }
+}
+
+void ChatPage::addAttachmentFromFile(const QString &filePath)
+{
+    const QFileInfo info(filePath);
+    const QString suffix = info.suffix().trimmed().toLower();
+    if (suffix.isEmpty()) {
+        return;
+    }
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return;
+    }
+
+    Attachment attachment;
+    attachment.fileName = info.fileName();
+    attachment.mimeType = mimeTypeForSuffix(suffix);
+
+    if (isImageFile(suffix)) {
+        attachment.type = Attachment::Image;
+        attachment.fileData = file.readAll();
+    } else if (isDocumentFile(suffix)) {
+        attachment.type = Attachment::Document;
+        attachment.fileData = file.readAll();
+    } else {
+        attachment.type = Attachment::TextFile;
+        attachment.textContent = QString::fromUtf8(file.readAll());
+    }
+
+    m_pendingAttachments.append(attachment);
+    refreshAttachmentPreview();
+}
+
+void ChatPage::refreshAttachmentPreview()
+{
+    while (m_attachPreviewLayout->count() > 1) {
+        QLayoutItem *item = m_attachPreviewLayout->takeAt(0);
+        if (item->widget()) {
+            item->widget()->deleteLater();
+        }
+        delete item;
+    }
+
+    if (m_pendingAttachments.isEmpty()) {
+        m_attachPreviewWidget->hide();
+        return;
+    }
+
+    for (int i = 0; i < m_pendingAttachments.size(); ++i) {
+        const Attachment &attachment = m_pendingAttachments.at(i);
+
+        QWidget *chip = new QWidget(m_attachPreviewWidget);
+        QHBoxLayout *chipLayout = new QHBoxLayout(chip);
+        chipLayout->setContentsMargins(8, 4, 8, 4);
+        chipLayout->setSpacing(6);
+
+        QLabel *nameLabel = new QLabel(attachment.fileName, chip);
+        chipLayout->addWidget(nameLabel);
+
+        ElaPushButton *removeButton = new ElaPushButton("x", chip);
+        removeButton->setFixedSize(20, 20);
+        connect(removeButton, &ElaPushButton::clicked, this, [this, i]() {
+            if (i < 0 || i >= m_pendingAttachments.size()) {
+                return;
+            }
+            m_pendingAttachments.removeAt(i);
+            refreshAttachmentPreview();
+        });
+        chipLayout->addWidget(removeButton);
+
+        m_attachPreviewLayout->insertWidget(m_attachPreviewLayout->count() - 1, chip);
+    }
+
+    m_attachPreviewWidget->show();
+}
+
+void ChatPage::clearAttachments()
+{
+    m_pendingAttachments.clear();
+    refreshAttachmentPreview();
+}
+
+bool ChatPage::isImageFile(const QString &suffix)
+{
+    static const QStringList kImageExtensions = {
+        "png", "jpg", "jpeg", "gif", "webp", "bmp"
+    };
+    return kImageExtensions.contains(suffix);
+}
+
+bool ChatPage::isDocumentFile(const QString &suffix)
+{
+    static const QStringList kDocumentExtensions = {
+        "pdf"
+    };
+    return kDocumentExtensions.contains(suffix);
+}
+
+QString ChatPage::mimeTypeForSuffix(const QString &suffix)
+{
+    if (suffix == "png") return "image/png";
+    if (suffix == "jpg" || suffix == "jpeg") return "image/jpeg";
+    if (suffix == "gif") return "image/gif";
+    if (suffix == "webp") return "image/webp";
+    if (suffix == "bmp") return "image/bmp";
+    if (suffix == "pdf") return "application/pdf";
+    return "text/plain";
+}
+
 void ChatPage::onSendClicked()
 {
-    QString text = m_inputEdit->toPlainText().trimmed();
-    if (text.isEmpty()) return;  // 空消息不发送
+    const QString text = m_inputEdit->toPlainText().trimmed();
+    if (text.isEmpty() && m_pendingAttachments.isEmpty()) {
+        return;
+    }
+
+    const QList<Attachment> attachments = m_pendingAttachments;
     m_inputEdit->clear();
-    emit sendMessageRequested(text);
+    clearAttachments();
+    emit sendMessageRequested(text, attachments);
 }
 
-// ============================================================================
-// 消息管理
-// ============================================================================
-
-/**
- * @brief 添加一个新的消息气泡到消息区
- *
- * 新气泡插入到 m_messageLayout 的倒数第二个位置（最后一个是 stretch），
- * 这样气泡始终紧贴顶部排列，底部弹簧负责填充剩余空间。
- *
- * @param index    该消息在 ChatSession 消息列表中的索引（用于联动右键操作；
- *                 < 0 时自动按当前 m_bubbles.size() 顺序分配，保证发送消息时
- *                 新建的 user/assistant 气泡也带正确索引）
- * @param favorite 该消息当前的收藏状态（决定气泡上 ★ 是否显示）
- */
 void ChatPage::addMessageBubble(const QString &role, const QString &content,
+                                const QList<Attachment> &attachments,
                                 int index, bool favorite)
 {
-    int realIndex = (index >= 0) ? index : m_bubbles.size();
-    MessageBubble::Role bubbleRole = (role == "user") ? MessageBubble::User : MessageBubble::Assistant;
-    auto *bubble = new MessageBubble(bubbleRole, content, m_messageContainer,
+    const int realIndex = (index >= 0) ? index : m_bubbles.size();
+    const MessageBubble::Role bubbleRole = (role == "user") ? MessageBubble::User
+                                                            : MessageBubble::Assistant;
+    const QString displayText = bubbleDisplayText(content, attachments);
+
+    auto *bubble = new MessageBubble(bubbleRole, displayText, m_messageContainer,
                                      m_userName, m_assistantName,
                                      realIndex, favorite);
 
-    // 气泡右键菜单 → 透传到 ChatPage 的统一信号（最终由 MainWindow 接管）
     connect(bubble, &MessageBubble::favoriteToggleRequested,
             this, &ChatPage::messageFavoriteToggleRequested);
     connect(bubble, &MessageBubble::deleteFromHereRequested,
             this, &ChatPage::messageDeleteFromHereRequested);
 
-    // 插入到 stretch 之前（count-1 是 stretch 的位置）
-    int idx = m_messageLayout->count() - 1;
-    if (idx < 0) idx = 0;
-    m_messageLayout->insertWidget(idx, bubble);
+    int insertIndex = m_messageLayout->count() - 1;
+    if (insertIndex < 0) {
+        insertIndex = 0;
+    }
+    m_messageLayout->insertWidget(insertIndex, bubble);
     m_bubbles.append(bubble);
     scrollToBottom();
 }
 
-/**
- * @brief 向最后一个气泡追加文本（用于流式 token 的逐步填充）
- */
 void ChatPage::appendToLastBubble(const QString &token)
 {
-    if (m_bubbles.isEmpty()) return;
+    if (m_bubbles.isEmpty()) {
+        return;
+    }
     m_bubbles.last()->appendText(token);
     scrollToBottom();
 }
 
-/**
- * @brief 替换最后一个气泡的完整文本（用于流式结束后去除情绪标签等）
- */
 void ChatPage::replaceLastBubbleContent(const QString &text)
 {
-    if (m_bubbles.isEmpty()) return;
+    if (m_bubbles.isEmpty()) {
+        return;
+    }
     m_bubbles.last()->setContent(text);
     scrollToBottom();
 }
 
-/**
- * @brief 清空所有消息气泡，释放内存
- */
 void ChatPage::clearMessages()
 {
-    for (auto *bubble : m_bubbles) {
+    for (MessageBubble *bubble : m_bubbles) {
         m_messageLayout->removeWidget(bubble);
         bubble->deleteLater();
     }
     m_bubbles.clear();
 }
 
-/**
- * @brief 批量加载消息记录（切换会话时调用）
- *
- * 加载时按列表顺序为每条消息分配索引（与 ChatSession::messageAt 一致），
- * 并把消息的收藏状态同步到气泡，使 ★ 指示器与数据层保持一致。
- */
 void ChatPage::loadMessages(const QList<ChatMessage> &messages)
 {
     clearMessages();
     for (int i = 0; i < messages.size(); ++i) {
-        const auto &msg = messages.at(i);
-        addMessageBubble(msg.role, msg.content, i, msg.favorite);
+        const ChatMessage &msg = messages.at(i);
+        addMessageBubble(msg.role, msg.content, msg.attachments, i, msg.favorite);
     }
 }
 
-/**
- * @brief 按消息索引刷新气泡的收藏 ★ 显示
- *
- * 由 MainWindow 在更新 ChatSession 后调用，使数据层和 UI 保持一致。
- * 找不到匹配索引时静默返回（如气泡尚未生成或索引不在当前列表中）。
- */
 void ChatPage::setBubbleFavorite(int index, bool favorite)
 {
-    for (MessageBubble *b : m_bubbles) {
-        if (b->messageIndex() == index) {
-            b->setFavorite(favorite);
+    for (MessageBubble *bubble : m_bubbles) {
+        if (bubble->messageIndex() == index) {
+            bubble->setFavorite(favorite);
             return;
         }
     }
 }
 
-// ============================================================================
-// UI 状态控制
-// ============================================================================
-
-/** @brief 启用/禁用输入框和发送按钮（流式请求期间禁用） */
 void ChatPage::setInputEnabled(bool enabled)
 {
     m_inputEdit->setEnabled(enabled);
+    m_attachButton->setEnabled(enabled);
     m_sendButton->setEnabled(enabled);
 }
 
-/** @brief 设置/隐藏状态文本（空字符串隐藏，非空显示） */
 void ChatPage::setStatusText(const QString &text)
 {
     if (text.isEmpty()) {
@@ -341,16 +429,11 @@ void ChatPage::setStatusText(const QString &text)
     }
 }
 
-/** @brief 将消息滚动区滚动到最底部 */
 void ChatPage::scrollToBottom()
 {
     QScrollBar *bar = m_scrollArea->verticalScrollBar();
     bar->setValue(bar->maximum());
 }
-
-// ============================================================================
-// 会话列表代理 —— 简单转发给 SessionListWidget
-// ============================================================================
 
 void ChatPage::addSession(ChatSession *session)
 {
@@ -367,14 +450,10 @@ void ChatPage::setActiveSession(const QString &id)
     m_sessionList->setActiveSession(id);
 }
 
-void ChatPage::refreshSessionList(const QList<ChatSession*> &sessions)
+void ChatPage::refreshSessionList(const QList<ChatSession *> &sessions)
 {
     m_sessionList->refreshList(sessions);
 }
-
-// ============================================================================
-// Provider 下拉框代理
-// ============================================================================
 
 void ChatPage::setProviderIndex(int index)
 {
@@ -386,27 +465,27 @@ QString ChatPage::currentProviderData() const
     return m_providerCombo->currentData().toString();
 }
 
-/**
- * @brief 更新显示名称，同时刷新所有已有气泡的角色标签
- */
 void ChatPage::updateRoleNames(const QString &userName, const QString &assistantName)
 {
     m_userName = userName;
     m_assistantName = assistantName;
-    for (MessageBubble *b : m_bubbles) {
-        b->setRoleName(b->role() == MessageBubble::User ? userName : assistantName);
+
+    for (MessageBubble *bubble : m_bubbles) {
+        bubble->setRoleName(bubble->role() == MessageBubble::User ? userName : assistantName);
     }
 }
 
-/** @brief 重新加载 Prompt 模板栏（从 AppSettings 读取） */
 void ChatPage::refreshPromptTemplates()
 {
-    if (!m_promptLayout || !m_settings) return;
+    if (!m_promptLayout || !m_settings) {
+        return;
+    }
 
-    // 移除旧按钮（保留末尾的 stretch）
     while (m_promptLayout->count() > 1) {
         QLayoutItem *item = m_promptLayout->takeAt(0);
-        if (item->widget()) item->widget()->deleteLater();
+        if (item->widget()) {
+            item->widget()->deleteLater();
+        }
         delete item;
     }
 
@@ -416,12 +495,13 @@ void ChatPage::refreshPromptTemplates()
         btn->setObjectName("promptTag");
         btn->setFixedHeight(28);
         connect(btn, &ElaPushButton::clicked, this, [this, tmpl]() {
-            QString current = m_inputEdit->toPlainText().trimmed();
+            const QString current = m_inputEdit->toPlainText().trimmed();
             if (current.isEmpty()) {
                 m_inputEdit->setPlainText(tmpl + ": ");
             } else {
                 m_inputEdit->setPlainText(current + "\n" + tmpl + ": ");
             }
+
             m_inputEdit->setFocus();
             QTextCursor cursor = m_inputEdit->textCursor();
             cursor.movePosition(QTextCursor::End);

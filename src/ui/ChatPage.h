@@ -1,114 +1,94 @@
 #pragma once
-#include <QWidget>
-#include <QScrollArea>
-#include <QVBoxLayout>
+
 #include <QHBoxLayout>
-#include <QTextEdit>
 #include <QLabel>
 #include <QList>
+#include <QScrollArea>
+#include <QTextEdit>
+#include <QVBoxLayout>
+#include <QWidget>
+
+#include "core/ChatSession.h"
 
 class MessageBubble;
 class SessionListWidget;
 class ElaComboBox;
 class ElaPushButton;
 class AppSettings;
-struct ChatMessage;
 
-/**
- * @brief 聊天主页面 —— 整个应用的核心交互界面
- *
- * 采用左右分栏布局（QSplitter）：
- *
- *   ┌─────────────────────────────────────────────────────┐
- *   │ ┌──────────┐ ┌──────────────────────────────────┐   │
- *   │ │LeftPanel │ │         Right Panel               │   │
- *   │ │          │ │                                    │   │
- *   │ │ ComboBox │ │   QScrollArea（消息气泡区）        │   │
- *   │ │ +NewChat │ │     MessageBubble ...              │   │
- *   │ │          │ │                                    │   │
- *   │ │ Session  │ │                                    │   │
- *   │ │ List     │ │──────────────────────────────────│   │
- *   │ │ Widget   │ │   StatusLabel                     │   │
- *   │ │          │ │──────────────────────────────────│   │
- *   │ │          │ │   [ TextEdit 输入框 ] [Send]      │   │
- *   │ └──────────┘ └──────────────────────────────────┘   │
- *   └─────────────────────────────────────────────────────┘
- *
- * 本类只负责 UI 展示和用户交互，不直接处理业务逻辑。
- * 所有操作通过信号通知 MainWindow 进行调度。
- */
 class ChatPage : public QWidget
 {
     Q_OBJECT
 public:
     explicit ChatPage(AppSettings *settings, QWidget *parent = nullptr);
 
-    // ===== 消息管理 =====
     void addMessageBubble(const QString &role, const QString &content,
-                          int index = -1, bool favorite = false);  // 添加一个消息气泡
-    void appendToLastBubble(const QString &token);  // 向最后一个气泡追加文本（流式填充）
-    void replaceLastBubbleContent(const QString &text);  // 替换最后一个气泡的完整文本
-    void clearMessages();                            // 清空所有消息气泡
-    void loadMessages(const QList<ChatMessage> &messages);  // 批量加载消息记录
-    void setBubbleFavorite(int index, bool favorite);  // 按索引刷新气泡的 ★ 显示
+                          const QList<Attachment> &attachments = {},
+                          int index = -1, bool favorite = false);
+    void appendToLastBubble(const QString &token);
+    void replaceLastBubbleContent(const QString &text);
+    void clearMessages();
+    void loadMessages(const QList<ChatMessage> &messages);
+    void setBubbleFavorite(int index, bool favorite);
 
-    // ===== UI 状态控制 =====
-    void setInputEnabled(bool enabled);  // 启用/禁用输入框和发送按钮
-    void setStatusText(const QString &text);  // 设置状态提示文本（如 "Thinking..."）
-    void scrollToBottom();               // 滚动消息区到底部
+    void setInputEnabled(bool enabled);
+    void setStatusText(const QString &text);
+    void scrollToBottom();
 
-    // ===== 会话列表代理方法 =====
     void addSession(class ChatSession *session);
     void removeSession(const QString &id);
     void setActiveSession(const QString &id);
-    void refreshSessionList(const QList<ChatSession*> &sessions);
+    void refreshSessionList(const QList<ChatSession *> &sessions);
 
-    // ===== Provider 选择 =====
-    void setProviderIndex(int index);          // 设置 Provider 下拉框选中项
-    QString currentProviderData() const;       // 获取当前选中的 Provider 标识
+    void setProviderIndex(int index);
+    QString currentProviderData() const;
 
-    // ===== 角色显示名 =====
-    void updateRoleNames(const QString &userName, const QString &assistantName);  // 更新所有气泡的角色标签
-
-    // ===== Prompt 模板 =====
-    void refreshPromptTemplates();  // 重新加载 prompt 模板栏（从 AppSettings 读取）
+    void updateRoleNames(const QString &userName, const QString &assistantName);
+    void refreshPromptTemplates();
 
 signals:
-    void sendMessageRequested(const QString &text);      // 用户请求发送消息
-    void sessionSelected(const QString &id);             // 用户点击选中某个会话
-    void sessionDeleteRequested(const QString &id);      // 用户请求删除某个会话
-    void newChatRequested();                              // 用户点击"新建聊天"
-    void providerSwitched(const QString &providerName);  // 用户切换 Provider
-    void messageFavoriteToggleRequested(int index);      // 用户在气泡右键菜单切换收藏
-    void messageDeleteFromHereRequested(int index);      // 用户在气泡右键菜单删除该消息及其后
+    void sendMessageRequested(const QString &text, const QList<Attachment> &attachments);
+    void sessionSelected(const QString &id);
+    void sessionDeleteRequested(const QString &id);
+    void newChatRequested();
+    void providerSwitched(const QString &providerName);
+    void messageFavoriteToggleRequested(int index);
+    void messageDeleteFromHereRequested(int index);
 
 private slots:
-    void onSendClicked();  // 发送按钮点击处理
+    void onSendClicked();
+    void onAttachClicked();
 
 private:
-    void setupUI();        // 构建整个页面的 UI 布局
-    bool eventFilter(QObject *obj, QEvent *event) override;  // 事件过滤器（拦截 Enter 键）
+    void setupUI();
+    bool eventFilter(QObject *obj, QEvent *event) override;
+    void addAttachmentFromFile(const QString &filePath);
+    void refreshAttachmentPreview();
+    void clearAttachments();
+    static bool isImageFile(const QString &suffix);
+    static bool isDocumentFile(const QString &suffix);
+    static QString mimeTypeForSuffix(const QString &suffix);
 
-    // --- 左侧面板控件 ---
-    ElaComboBox *m_providerCombo;      // Provider 选择下拉框（Claude / OpenAI）
-    ElaPushButton *m_newChatBtn;       // "新建聊天"按钮
-    SessionListWidget *m_sessionList;  // 会话列表控件
+    ElaComboBox *m_providerCombo = nullptr;
+    ElaPushButton *m_newChatBtn = nullptr;
+    SessionListWidget *m_sessionList = nullptr;
 
-    // --- 右侧面板控件 ---
-    QScrollArea *m_scrollArea;         // 消息区的滚动容器
-    QWidget *m_messageContainer;       // 消息气泡的实际容器 widget
-    QVBoxLayout *m_messageLayout;      // 消息气泡的垂直布局（末尾有 stretch）
-    QTextEdit *m_inputEdit;            // 多行文本输入框
-    ElaPushButton *m_sendButton;       // 发送按钮
-    QLabel *m_statusLabel;             // 状态提示标签（"Thinking..." / "Error: ..."）
+    QScrollArea *m_scrollArea = nullptr;
+    QWidget *m_messageContainer = nullptr;
+    QVBoxLayout *m_messageLayout = nullptr;
+    QTextEdit *m_inputEdit = nullptr;
+    ElaPushButton *m_attachButton = nullptr;
+    ElaPushButton *m_sendButton = nullptr;
+    QLabel *m_statusLabel = nullptr;
+    QWidget *m_attachPreviewWidget = nullptr;
+    QHBoxLayout *m_attachPreviewLayout = nullptr;
 
-    QList<MessageBubble*> m_bubbles;   // 当前显示的所有消息气泡指针列表
+    QList<MessageBubble *> m_bubbles;
+    QList<Attachment> m_pendingAttachments;
 
-    // AppSettings 引用（用于读取 prompt 模板、监听变化）
     AppSettings *m_settings = nullptr;
     QHBoxLayout *m_promptLayout = nullptr;
 
-    // 角色显示名（默认 "You"/"Assistant"，可通过 updateRoleNames 更新）
     QString m_userName = "You";
     QString m_assistantName = "Assistant";
 };
