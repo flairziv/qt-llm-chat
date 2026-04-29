@@ -79,7 +79,44 @@ void OpenAIProvider::sendStreamingRequest(
     for (const auto &msg : messages) {
         QJsonObject m;
         m["role"] = msg.role;
-        m["content"] = msg.content;
+
+        if (msg.attachments.isEmpty()) {
+            m["content"] = msg.content;
+        } else {
+            QJsonArray contentArray;
+            QString textParts;
+
+            for (const auto &att : msg.attachments) {
+                if (att.type == Attachment::Image) {
+                    QJsonObject imageBlock;
+                    imageBlock["type"] = "image_url";
+
+                    QJsonObject imageUrl;
+                    imageUrl["url"] = QStringLiteral("data:%1;base64,%2")
+                        .arg(att.mimeType, QString::fromLatin1(att.fileData.toBase64()));
+                    imageBlock["image_url"] = imageUrl;
+
+                    contentArray.append(imageBlock);
+                } else if (att.type == Attachment::Document) {
+                    textParts += QStringLiteral("[Document: %1 (binary, not displayed)]\n\n")
+                        .arg(att.fileName);
+                } else if (att.type == Attachment::TextFile) {
+                    textParts += QStringLiteral("[File: %1]\n%2\n\n")
+                        .arg(att.fileName, att.textContent);
+                }
+            }
+
+            const QString fullText = textParts + msg.content;
+            if (!fullText.trimmed().isEmpty()) {
+                QJsonObject textBlock;
+                textBlock["type"] = "text";
+                textBlock["text"] = fullText;
+                contentArray.append(textBlock);
+            }
+
+            m["content"] = contentArray;
+        }
+
         msgArray.append(m);
     }
     body["messages"] = msgArray;
