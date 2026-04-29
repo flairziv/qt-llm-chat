@@ -57,6 +57,7 @@ void ClaudeProvider::sendStreamingRequest(
     QNetworkRequest request;
     request.setUrl(QUrl(m_baseUrl + "/v1/messages"));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
     request.setRawHeader("x-api-key", m_apiKey.toUtf8());
     request.setRawHeader("anthropic-version", "2023-06-01");
 
@@ -90,7 +91,53 @@ void ClaudeProvider::sendStreamingRequest(
         if (msg.role == "system") continue;
         QJsonObject m;
         m["role"] = msg.role;
-        m["content"] = msg.content;
+
+        if (msg.attachments.isEmpty()) {
+            m["content"] = msg.content;
+        } else {
+            QJsonArray contentArray;
+            QString textParts;
+
+            for (const auto &att : msg.attachments) {
+                if (att.type == Attachment::Image) {
+                    QJsonObject imageBlock;
+                    imageBlock["type"] = "image";
+
+                    QJsonObject source;
+                    source["type"] = "base64";
+                    source["media_type"] = att.mimeType;
+                    source["data"] = QString::fromLatin1(att.fileData.toBase64());
+                    imageBlock["source"] = source;
+
+                    contentArray.append(imageBlock);
+                } else if (att.type == Attachment::Document) {
+                    QJsonObject documentBlock;
+                    documentBlock["type"] = "document";
+
+                    QJsonObject source;
+                    source["type"] = "base64";
+                    source["media_type"] = att.mimeType;
+                    source["data"] = QString::fromLatin1(att.fileData.toBase64());
+                    documentBlock["source"] = source;
+
+                    contentArray.append(documentBlock);
+                } else if (att.type == Attachment::TextFile) {
+                    textParts += QStringLiteral("[File: %1]\n%2\n\n")
+                        .arg(att.fileName, att.textContent);
+                }
+            }
+
+            const QString fullText = textParts + msg.content;
+            if (!fullText.trimmed().isEmpty()) {
+                QJsonObject textBlock;
+                textBlock["type"] = "text";
+                textBlock["text"] = fullText;
+                contentArray.append(textBlock);
+            }
+
+            m["content"] = contentArray;
+        }
+
         msgArray.append(m);
     }
     body["messages"] = msgArray;
