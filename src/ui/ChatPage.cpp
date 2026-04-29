@@ -18,45 +18,6 @@
 #include <QTextCursor>
 #include <QTimer>
 
-namespace {
-
-QString attachmentSummaryText(const QList<Attachment> &attachments)
-{
-    if (attachments.isEmpty()) {
-        return {};
-    }
-
-    QStringList names;
-    names.reserve(attachments.size());
-    for (const Attachment &attachment : attachments) {
-        if (!attachment.fileName.isEmpty()) {
-            names.append(attachment.fileName);
-        }
-    }
-
-    if (names.isEmpty()) {
-        return QStringLiteral("[%1 attachment(s)]").arg(attachments.size());
-    }
-
-    return QStringLiteral("[Attachments] %1").arg(names.join(QStringLiteral(", ")));
-}
-
-QString bubbleDisplayText(const QString &content, const QList<Attachment> &attachments)
-{
-    if (attachments.isEmpty()) {
-        return content;
-    }
-
-    const QString summary = attachmentSummaryText(attachments);
-    if (content.trimmed().isEmpty()) {
-        return summary;
-    }
-
-    return content + QStringLiteral("\n\n") + summary;
-}
-
-} // namespace
-
 ChatPage::ChatPage(AppSettings *settings, QWidget *parent)
     : QWidget(parent)
     , m_settings(settings)
@@ -346,9 +307,8 @@ void ChatPage::addMessageBubble(const QString &role, const QString &content,
     const int realIndex = (index >= 0) ? index : m_bubbles.size();
     const MessageBubble::Role bubbleRole = (role == "user") ? MessageBubble::User
                                                             : MessageBubble::Assistant;
-    const QString displayText = bubbleDisplayText(content, attachments);
 
-    auto *bubble = new MessageBubble(bubbleRole, displayText, m_messageContainer,
+    auto *bubble = new MessageBubble(bubbleRole, content, attachments, m_messageContainer,
                                      m_userName, m_assistantName,
                                      realIndex, favorite);
 
