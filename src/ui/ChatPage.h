@@ -50,6 +50,8 @@ signals:
     void sendMessageRequested(const QString &text, const QList<Attachment> &attachments);
     void sessionSelected(const QString &id);
     void sessionDeleteRequested(const QString &id);
+    void sessionRenameRequested(const QString &id);
+    void sessionExportRequested(const QString &id);
     void newChatRequested();
     void providerSwitched(const QString &providerName);
     void messageFavoriteToggleRequested(int index);

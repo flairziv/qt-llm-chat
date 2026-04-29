@@ -149,6 +149,8 @@ void ChatPage::setupUI()
     connect(m_newChatBtn, &ElaPushButton::clicked, this, &ChatPage::newChatRequested);
     connect(m_sessionList, &SessionListWidget::sessionSelected, this, &ChatPage::sessionSelected);
     connect(m_sessionList, &SessionListWidget::sessionDeleteRequested, this, &ChatPage::sessionDeleteRequested);
+    connect(m_sessionList, &SessionListWidget::sessionRenameRequested, this, &ChatPage::sessionRenameRequested);
+    connect(m_sessionList, &SessionListWidget::sessionExportRequested, this, &ChatPage::sessionExportRequested);
     connect(m_providerCombo, &ElaComboBox::currentTextChanged, this, [this]() {
         emit providerSwitched(m_providerCombo->currentData().toString());
     });

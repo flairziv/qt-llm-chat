@@ -147,10 +147,17 @@ void SessionListWidget::onContextMenu(const QPoint &pos)
 
     // 构建并弹出右键菜单
     QMenu menu(this);
+    QAction *renameAction = menu.addAction("Rename");
+    QAction *exportAction = menu.addAction("Export");
+    menu.addSeparator();
     QAction *deleteAction = menu.addAction("Delete");
 
     QAction *selected = menu.exec(mapToGlobal(pos));  // 阻塞式弹出菜单
-    if (selected == deleteAction) {
+    if (selected == renameAction) {
+        emit sessionRenameRequested(id);
+    } else if (selected == exportAction) {
+        emit sessionExportRequested(id);
+    } else if (selected == deleteAction) {
         emit sessionDeleteRequested(id);
     }
 }

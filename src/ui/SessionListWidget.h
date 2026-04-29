@@ -41,6 +41,8 @@ public:
 signals:
     void sessionSelected(const QString &id);         // 用户点击选中某个会话
     void sessionDeleteRequested(const QString &id);   // 用户通过右键菜单请求删除会话
+    void sessionRenameRequested(const QString &id);
+    void sessionExportRequested(const QString &id);
 
 private slots:
     void onItemClicked(QListWidgetItem *item);  // 列表项点击处理

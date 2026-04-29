@@ -15,6 +15,10 @@
 
 #include <QRegularExpression>
 #include <QCoreApplication>
+#include <QFile>
+#include <QFileDialog>
+#include <QInputDialog>
+#include <QLineEdit>
 #include <QShortcut>
 #include <QMediaPlayer>
 #include <QDebug>
@@ -205,6 +209,8 @@ void MainWindow::setupConnections()
     connect(m_chatPage, &ChatPage::newChatRequested, this, &MainWindow::onNewChat);
     connect(m_chatPage, &ChatPage::sessionSelected, this, &MainWindow::onSessionSelected);
     connect(m_chatPage, &ChatPage::sessionDeleteRequested, this, &MainWindow::onDeleteChat);
+    connect(m_chatPage, &ChatPage::sessionRenameRequested, this, &MainWindow::onRenameChat);
+    connect(m_chatPage, &ChatPage::sessionExportRequested, this, &MainWindow::onExportSession);
     connect(m_chatPage, &ChatPage::providerSwitched, this, &MainWindow::onProviderSwitched);
     connect(m_chatPage, &ChatPage::messageFavoriteToggleRequested,
             this, &MainWindow::onMessageFavoriteToggle);
@@ -434,6 +440,98 @@ void MainWindow::onDeleteChat(const QString &sessionId)
     } else {
         m_chatPage->clearMessages();
     }
+}
+
+/** @brief Rename a saved chat session from the session list context menu. */
+void MainWindow::onRenameChat(const QString &sessionId)
+{
+    if (m_isStreaming) return;
+
+    ChatSession *session = m_sessionManager->session(sessionId);
+    if (!session) return;
+
+    bool ok = false;
+    const QString title = QInputDialog::getText(
+        this,
+        "Rename Chat",
+        "Title:",
+        QLineEdit::Normal,
+        session->title(),
+        &ok
+    ).trimmed();
+
+    if (!ok || title.isEmpty() || title == session->title()) {
+        return;
+    }
+
+    session->setTitle(title);
+    m_sessionManager->saveSession(session);
+}
+
+void MainWindow::onExportSession(const QString &sessionId)
+{
+    ChatSession *session = m_sessionManager->session(sessionId);
+    if (!session) return;
+
+    QString fileName = session->title().trimmed();
+    if (fileName.isEmpty()) {
+        fileName = "session";
+    }
+    fileName.replace(QRegularExpression(QStringLiteral("[\\\\/:*?\"<>|]")), "_");
+
+    const QString filePath = QFileDialog::getSaveFileName(
+        this,
+        "Export Session",
+        fileName + ".md",
+        "Markdown (*.md);;Text (*.txt);;All Files (*)"
+    );
+    if (filePath.isEmpty()) {
+        return;
+    }
+
+    QString markdown;
+    markdown += "# " + session->title() + "\n\n";
+    if (!session->providerName().isEmpty() || !session->modelName().isEmpty()) {
+        markdown += QStringLiteral("- Provider: %1\n- Model: %2\n\n")
+            .arg(session->providerName(), session->modelName());
+    }
+
+    for (const auto &msg : session->messages()) {
+        const QString role = (msg.role == "assistant") ? "Assistant" : "User";
+        markdown += "## " + role + "\n\n";
+
+        if (!msg.attachments.isEmpty()) {
+            markdown += "Attachments:\n";
+            for (const auto &att : msg.attachments) {
+                QString type = "File";
+                if (att.type == Attachment::Image) {
+                    type = "Image";
+                } else if (att.type == Attachment::Document) {
+                    type = "Document";
+                } else if (att.type == Attachment::TextFile) {
+                    type = "Text";
+                }
+
+                markdown += QStringLiteral("- %1: %2")
+                    .arg(type, att.fileName);
+                if (!att.mimeType.isEmpty()) {
+                    markdown += QStringLiteral(" (%1)").arg(att.mimeType);
+                }
+                markdown += "\n";
+            }
+            markdown += "\n";
+        }
+
+        markdown += msg.content.trimmed();
+        markdown += "\n\n---\n\n";
+    }
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        return;
+    }
+
+    file.write(markdown.toUtf8());
 }
 
 /** @brief 用户在会话列表中点击切换会话 */
