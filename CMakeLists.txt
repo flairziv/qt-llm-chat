@@ -24,6 +24,8 @@ set(SOURCES
     src/ui/MainWindow.cpp
     src/ui/ChatPage.cpp
     src/ui/CompareModePage.cpp
+    src/ui/AnalyticsPage.cpp
+    src/ui/AsciiArtPage.cpp
     src/ui/MessageBubble.cpp
     src/ui/SessionListWidget.cpp
     src/ui/SettingClaudePage.cpp
@@ -46,6 +48,8 @@ set(HEADERS
     src/ui/MainWindow.h
     src/ui/ChatPage.h
     src/ui/CompareModePage.h
+    src/ui/AnalyticsPage.h
+    src/ui/AsciiArtPage.h
     src/ui/MessageBubble.h
     src/ui/SessionListWidget.h
     src/ui/SettingClaudePage.h
