@@ -23,6 +23,7 @@ set(SOURCES
     src/core/EdgeTTSProvider.cpp
     src/ui/MainWindow.cpp
     src/ui/ChatPage.cpp
+    src/ui/CompareModePage.cpp
     src/ui/MessageBubble.cpp
     src/ui/SessionListWidget.cpp
     src/ui/SettingClaudePage.cpp
@@ -44,6 +45,7 @@ set(HEADERS
     src/core/EdgeTTSProvider.h
     src/ui/MainWindow.h
     src/ui/ChatPage.h
+    src/ui/CompareModePage.h
     src/ui/MessageBubble.h
     src/ui/SessionListWidget.h
     src/ui/SettingClaudePage.h
