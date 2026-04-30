@@ -17,6 +17,7 @@
 #include <QUrl>
 #include <ElaPushButton.h>
 #include <ElaComboBox.h>
+#include <ElaToggleSwitch.h>
 #include <ElaText.h>
 
 // ASCII 字符集（从暗到亮排列）
@@ -120,6 +121,14 @@ void AsciiArtPage::setupUI()
     m_charsetCombo->addItem("Detailed");
     controlLayout->addWidget(m_charsetCombo);
 
+    // 彩色开关
+    ElaText *colorLabel = new ElaText("Color:", controlBar);
+    colorLabel->setTextPixelSize(14);
+    controlLayout->addWidget(colorLabel);
+
+    m_colorSwitch = new ElaToggleSwitch(controlBar);
+    controlLayout->addWidget(m_colorSwitch);
+
     controlLayout->addStretch();
     mainLayout->addWidget(controlBar);
 
@@ -139,6 +148,11 @@ void AsciiArtPage::setupUI()
     m_saveTxtBtn->setEnabled(false);
     actionLayout->addWidget(m_saveTxtBtn);
 
+    m_saveHtmlBtn = new ElaPushButton("Save HTML", actionBar);
+    m_saveHtmlBtn->setFixedHeight(36);
+    m_saveHtmlBtn->setEnabled(false);
+    actionLayout->addWidget(m_saveHtmlBtn);
+
     actionLayout->addStretch();
     mainLayout->addWidget(actionBar);
 
@@ -155,10 +169,19 @@ void AsciiArtPage::setupUI()
     // 参数变化 → 实时更新预览
     connect(m_widthSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this]() { updatePreview(); });
     connect(m_charsetCombo, &ElaComboBox::currentTextChanged, this, [this]() { updatePreview(); });
+    connect(m_colorSwitch, &ElaToggleSwitch::toggled, this, [this]() { updatePreview(); });
 
     // 复制到剪贴板
     connect(m_copyBtn, &ElaPushButton::clicked, this, [this]() {
-        QApplication::clipboard()->setText(m_currentAscii);
+        if (m_colorSwitch->getIsToggled()) {
+            // 彩色模式：复制富文本（HTML + 纯文本备份）
+            QMimeData *mime = new QMimeData;
+            mime->setHtml(m_currentHtml);
+            mime->setText(m_currentAscii);
+            QApplication::clipboard()->setMimeData(mime);
+        } else {
+            QApplication::clipboard()->setText(m_currentAscii);
+        }
     });
 
     // 保存 TXT（保存后自动用系统默认程序打开）
@@ -172,6 +195,29 @@ void AsciiArtPage::setupUI()
             out << m_currentAscii;
             f.close();
             QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+        }
+    });
+
+    // 保存 HTML（完整文档，和预览效果一致）
+    connect(m_saveHtmlBtn, &ElaPushButton::clicked, this, [this]() {
+        QString path = QFileDialog::getSaveFileName(this, "Save Color ASCII Art", "ascii_art.html", "HTML (*.html)");
+        if (path.isEmpty()) return;
+        QFile f(path);
+        if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&f);
+            out.setCodec("UTF-8");
+            QString body = convertToColorHtml(m_sourceImage, m_widthSpin->value(),
+                                              m_charsetCombo->currentIndex() == 1);
+            out << "<!DOCTYPE html>\n<html>\n<head>\n"
+                << "<meta charset=\"UTF-8\">\n"
+                << "<title>ASCII Art</title>\n"
+                << "<style>\n"
+                << "  body { background: #111; margin: 0; padding: 16px; }\n"
+                << "  pre { font-family: Consolas, 'Courier New', monospace;\n"
+                << "        font-size: 8px; line-height: 1.0; margin: 0; }\n"
+                << "</style>\n</head>\n<body>\n"
+                << "<pre>" << body << "</pre>\n"
+                << "</body>\n</html>\n";
         }
     });
 }
@@ -196,6 +242,7 @@ void AsciiArtPage::loadImage(const QString &filePath)
     // 启用操作按钮
     m_copyBtn->setEnabled(true);
     m_saveTxtBtn->setEnabled(true);
+    m_saveHtmlBtn->setEnabled(true);
 
     updatePreview();
 }
@@ -233,9 +280,23 @@ void AsciiArtPage::updatePreview()
 
     int width = m_widthSpin->value();
     bool detailed = (m_charsetCombo->currentIndex() == 1);
+    bool color = m_colorSwitch->getIsToggled();
 
+    // 总是生成纯文本版本（Copy 用得到）
     m_currentAscii = convertToAscii(m_sourceImage, width, detailed);
-    m_asciiPreview->setPlainText(m_currentAscii);
+
+    if (color) {
+        // 彩色模式：生成 HTML 并用 RichText 渲染
+        m_currentHtml = convertToColorHtml(m_sourceImage, width, detailed);
+        m_asciiPreview->setHtml(
+            QStringLiteral("<pre style=\"font-family:Consolas,'Courier New',monospace; font-size:8px; "
+                           "line-height:1.0; background:#111; margin:0;\">%1</pre>")
+            .arg(m_currentHtml));
+    } else {
+        // 灰度模式：纯文本（QSS 已设了绿色字体）
+        m_currentHtml.clear();
+        m_asciiPreview->setPlainText(m_currentAscii);
+    }
 }
 
 // ============================================================================
@@ -277,4 +338,41 @@ QString AsciiArtPage::convertToAscii(const QImage &img, int width, bool detailed
         result += '\n';
     }
     return result;
+}
+
+/**
+ * @brief 将图片转换为彩色 HTML ASCII 字符画
+ *
+ * 每个字符用 <span style="color:rgb(r,g,b)"> 包裹，保留原始颜色信息。
+ * 返回 HTML 片段（不含 <html><body> 标签）。
+ */
+QString AsciiArtPage::convertToColorHtml(const QImage &img, int width, bool detailed)
+{
+    if (img.isNull() || width <= 0) return {};
+
+    const char *charset = detailed ? DETAILED_CHARSET : SIMPLE_CHARSET;
+    int charsetLen = static_cast<int>(strlen(charset));
+
+    int height = img.height() * width / img.width() / 2;
+    if (height <= 0) height = 1;
+
+    QImage scaled = img.scaled(width, height, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+                       .convertToFormat(QImage::Format_ARGB32);
+
+    QString html;
+    html.reserve(width * height * 60);  // 预分配，每个字符约 60 字节 HTML
+
+    for (int y = 0; y < scaled.height(); ++y) {
+        for (int x = 0; x < scaled.width(); ++x) {
+            QRgb pixel = scaled.pixel(x, y);
+            int r = qRed(pixel), g = qGreen(pixel), b = qBlue(pixel);
+            // 灰度值用于选择字符
+            int gray = (r * 299 + g * 587 + b * 114) / 1000;
+            int idx = gray * (charsetLen - 1) / 255;
+            html += QStringLiteral("<span style=\"color:rgb(%1,%2,%3)\">%4</span>")
+                .arg(r).arg(g).arg(b).arg(QChar(charset[idx]));
+        }
+        html += "<br>";
+    }
+    return html;
 }
