@@ -9,6 +9,7 @@ class SessionManager;
 class ChatPage;
 class CompareModePage;
 class AnalyticsPage;
+class AsciiArtPage;
 class SettingClaudePage;
 class SettingOpenAIPage;
 class SettingGeminiPage;
@@ -77,6 +78,7 @@ private:
     ChatPage *m_chatPage;
     CompareModePage *m_comparePage;
     AnalyticsPage *m_analyticsPage;
+    AsciiArtPage *m_asciiArtPage;
     SettingClaudePage *m_claudePage;
     SettingOpenAIPage *m_openaiPage;
     SettingGeminiPage *m_geminiPage;
