@@ -8,6 +8,7 @@ class AppSettings;
 class SessionManager;
 class ChatPage;
 class CompareModePage;
+class AnalyticsPage;
 class SettingClaudePage;
 class SettingOpenAIPage;
 class SettingGeminiPage;
@@ -75,6 +76,7 @@ private:
     // 页面指针
     ChatPage *m_chatPage;
     CompareModePage *m_comparePage;
+    AnalyticsPage *m_analyticsPage;
     SettingClaudePage *m_claudePage;
     SettingOpenAIPage *m_openaiPage;
     SettingGeminiPage *m_geminiPage;

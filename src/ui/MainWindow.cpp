@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 #include "ChatPage.h"
 #include "CompareModePage.h"
+#include "AnalyticsPage.h"
 #include "SettingClaudePage.h"
 #include "SettingGeminiPage.h"
 #include "SettingOpenAIPage.h"
@@ -170,6 +171,10 @@ void MainWindow::setupPages()
     // 模型对比页 —— 同时向 Claude / OpenAI 发请求并并排展示
     m_comparePage = new CompareModePage(m_settings, m_nam, this);
     addPageNode("Compare", m_comparePage, ElaIconType::ScaleBalanced);
+
+    // 会话分析页 —— 统计所有会话的数据
+    m_analyticsPage = new AnalyticsPage(m_sessionManager, this);
+    addPageNode("Analytics", m_analyticsPage, ElaIconType::ChartArea);
 
     // 设置页分组 —— 可展开的二级导航
     QString settingsGroup;
