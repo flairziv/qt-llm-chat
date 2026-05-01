@@ -15,6 +15,8 @@
 #include <QSpinBox>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QPainter>
+#include <QFontMetrics>
 #include <ElaPushButton.h>
 #include <ElaComboBox.h>
 #include <ElaToggleSwitch.h>
@@ -153,6 +155,11 @@ void AsciiArtPage::setupUI()
     m_saveHtmlBtn->setEnabled(false);
     actionLayout->addWidget(m_saveHtmlBtn);
 
+    m_savePngBtn = new ElaPushButton("Save PNG", actionBar);
+    m_savePngBtn->setFixedHeight(36);
+    m_savePngBtn->setEnabled(false);
+    actionLayout->addWidget(m_savePngBtn);
+
     actionLayout->addStretch();
     mainLayout->addWidget(actionBar);
 
@@ -220,6 +227,62 @@ void AsciiArtPage::setupUI()
                 << "</body>\n</html>\n";
         }
     });
+
+    // 保存 PNG（将 ASCII 渲染为等宽字体图片，所见即所得）
+    connect(m_savePngBtn, &ElaPushButton::clicked, this, [this]() {
+        QString path = QFileDialog::getSaveFileName(this, "Save ASCII Art as Image", "ascii_art.png", "PNG (*.png)");
+        if (path.isEmpty() || m_sourceImage.isNull()) return;
+
+        int width = m_widthSpin->value();
+        bool detailed = (m_charsetCombo->currentIndex() == 1);
+        bool color = m_colorSwitch->getIsToggled();
+        QString ascii = convertToAscii(m_sourceImage, width, detailed);
+
+        // 用等宽字体计算每个字符的像素尺寸
+        QFont monoFont("Consolas", 10);
+        monoFont.setStyleHint(QFont::Monospace);
+        QFontMetrics fm(monoFont);
+        int charW = fm.horizontalAdvance('M');
+        int charH = fm.height();
+
+        QStringList lines = ascii.split('\n', QString::SkipEmptyParts);
+        int imgW = charW * width + 16;       // 左右各 8px 边距
+        int imgH = charH * lines.size() + 16;
+
+        QImage outImg(imgW, imgH, QImage::Format_ARGB32);
+        outImg.fill(QColor(17, 17, 17));  // #111 黑底
+
+        QPainter painter(&outImg);
+        painter.setFont(monoFont);
+
+        if (color) {
+            // 彩色模式：逐字符按原图像素颜色绘制
+            int asciiH = m_sourceImage.height() * width / m_sourceImage.width() / 2;
+            if (asciiH <= 0) asciiH = 1;
+            QImage scaled = m_sourceImage.scaled(width, asciiH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+                                         .convertToFormat(QImage::Format_ARGB32);
+
+            for (int y = 0; y < qMin(lines.size(), scaled.height()); ++y) {
+                const QString &line = lines[y];
+                for (int x = 0; x < qMin(line.size(), scaled.width()); ++x) {
+                    QRgb pixel = scaled.pixel(x, y);
+                    painter.setPen(QColor(qRed(pixel), qGreen(pixel), qBlue(pixel)));
+                    painter.drawText(8 + x * charW, 8 + (y + 1) * charH - fm.descent(),
+                                     QString(line[x]));
+                }
+            }
+        } else {
+            // 灰度模式：纯绿色字体（与预览风格一致）
+            painter.setPen(QColor(0, 255, 0));
+            for (int y = 0; y < lines.size(); ++y) {
+                painter.drawText(8, 8 + (y + 1) * charH - fm.descent(), lines[y]);
+            }
+        }
+
+        painter.end();
+        outImg.save(path, "PNG");
+        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    });
 }
 
 // ============================================================================
@@ -243,6 +306,7 @@ void AsciiArtPage::loadImage(const QString &filePath)
     m_copyBtn->setEnabled(true);
     m_saveTxtBtn->setEnabled(true);
     m_saveHtmlBtn->setEnabled(true);
+    m_savePngBtn->setEnabled(true);
 
     updatePreview();
 }

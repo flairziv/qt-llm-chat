@@ -60,6 +60,7 @@ private:
     ElaPushButton *m_copyBtn;           // 复制
     ElaPushButton *m_saveTxtBtn;        // 保存 TXT
     ElaPushButton *m_saveHtmlBtn;       // 保存 HTML
+    ElaPushButton *m_savePngBtn;        // 保存 PNG 图片
 
     QImage m_sourceImage;               // 当前加载的原始图片
     QString m_currentAscii;             // 当前生成的 ASCII 文本
