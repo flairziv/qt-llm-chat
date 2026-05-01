@@ -47,6 +47,26 @@ public:
     /** @brief 返回提供者名称（如 "OpenAI"、"DeepSeek"），子类必须实现 */
     virtual QString providerName() const = 0;
 
+    /**
+     * @brief 从 API 错误响应体中提取人类可读的 message
+     *
+     * 三家主流 LLM 厂商错误响应格式都是 `{"error":{"message":"..."}}` 或顶层 `{"message":"..."}`，
+     * 这里统一解析。解析失败或无对应字段时返回 fallback。
+     *
+     * @param payload  HTTP 响应体原始字节（可能是 JSON、HTML、或空）
+     * @param fallback 解析不到时的回退文案（如 QNetworkReply::errorString()）
+     */
+    static QString extractApiErrorMessage(const QByteArray &payload,
+                                          const QString &fallback = {});
+
+    /**
+     * @brief 将消息附件中的 TextFile 部分拼接为可发给 LLM 的纯文本块
+     *
+     * 三家 Provider 都以 `[File: 文件名]\n文件内容\n\n` 的格式把文本附件拼到 user 消息体里，
+     * 抽到基类避免散落实现漂移。仅处理 TextFile，Image / Document 由各 Provider 按本家 API 形态另行处理。
+     */
+    static QString flattenTextAttachments(const QList<Attachment> &attachments);
+
 signals:
     /** @brief 收到一个新的流式 token 时发射 */
     void tokenReceived(const QString &token);

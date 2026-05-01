@@ -79,11 +79,9 @@ void GeminiProvider::sendStreamingRequest(
             }
         }
 
-        QString textPart;
+        QString textPart = flattenTextAttachments(msg.attachments);
         for (const auto &att : msg.attachments) {
-            if (att.type == Attachment::TextFile) {
-                textPart += QStringLiteral("[File: %1]\n%2\n\n").arg(att.fileName, att.textContent);
-            } else if (att.type == Attachment::Document) {
+            if (att.type == Attachment::Document) {
                 textPart += QStringLiteral("[Document: %1 (binary, not supported)]\n\n").arg(att.fileName);
             }
         }

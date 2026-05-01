@@ -98,7 +98,6 @@ void ClaudeProvider::sendStreamingRequest(
             m["content"] = msg.content;
         } else {
             QJsonArray contentArray;
-            QString textParts;
 
             for (const auto &att : msg.attachments) {
                 if (att.type == Attachment::Image) {
@@ -123,13 +122,11 @@ void ClaudeProvider::sendStreamingRequest(
                     documentBlock["source"] = source;
 
                     contentArray.append(documentBlock);
-                } else if (att.type == Attachment::TextFile) {
-                    textParts += QStringLiteral("[File: %1]\n%2\n\n")
-                        .arg(att.fileName, att.textContent);
                 }
+                // TextFile 由 flattenTextAttachments 统一拼接到下方文本块
             }
 
-            const QString fullText = textParts + msg.content;
+            const QString fullText = flattenTextAttachments(msg.attachments) + msg.content;
             if (!fullText.trimmed().isEmpty()) {
                 QJsonObject textBlock;
                 textBlock["type"] = "text";

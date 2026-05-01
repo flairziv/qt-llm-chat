@@ -1,5 +1,6 @@
 #include "LLMProvider.h"
 #include <QJsonDocument>
+#include <QJsonObject>
 
 // ============================================================================
 // 构造 / 析构
@@ -106,22 +107,13 @@ void LLMProvider::onReplyFinished()
     // 未收到任何流式 token，检查是否为非 SSE 的错误响应
     if (m_accumulatedResponse.isEmpty()) {
         QByteArray remaining = m_currentReply->readAll();
-        if (!remaining.isEmpty()) {
-            QJsonDocument doc = QJsonDocument::fromJson(remaining);
-            if (doc.isObject()) {
-                QJsonObject obj = doc.object();
-                // 尝试提取 API 错误对象中的 message 字段
-                if (obj.contains("error")) {
-                    QJsonObject err = obj["error"].toObject();
-                    QString errMsg = err["message"].toString();
-                    if (errMsg.isEmpty()) errMsg = QString::fromUtf8(remaining);
-                    emit errorOccurred(errMsg);
-                    m_currentReply->deleteLater();
-                    m_currentReply = nullptr;
-                    m_sseParser.reset();
-                    return;
-                }
-            }
+        QString apiMsg = extractApiErrorMessage(remaining);
+        if (!apiMsg.isEmpty()) {
+            emit errorOccurred(apiMsg);
+            m_currentReply->deleteLater();
+            m_currentReply = nullptr;
+            m_sseParser.reset();
+            return;
         }
     }
 
@@ -144,27 +136,52 @@ void LLMProvider::onReplyError(QNetworkReply::NetworkError error)
     Q_UNUSED(error)
     if (!m_currentReply) return;
 
-    QString errorMsg = m_currentReply->errorString();
-
-    // 尝试从响应体中提取更具体的 API 错误信息
-    QByteArray body = m_currentReply->readAll();
-    if (!body.isEmpty()) {
-        QJsonDocument doc = QJsonDocument::fromJson(body);
-        if (doc.isObject()) {
-            QJsonObject obj = doc.object();
-            if (obj.contains("error")) {
-                QJsonObject err = obj["error"].toObject();
-                QString apiMsg = err["message"].toString();
-                if (!apiMsg.isEmpty()) {
-                    errorMsg = apiMsg;
-                }
-            }
-        }
-    }
+    const QString fallback = m_currentReply->errorString();
+    const QByteArray body = m_currentReply->readAll();
+    const QString errorMsg = extractApiErrorMessage(body, fallback);
 
     emit errorOccurred(errorMsg);
     m_currentReply->deleteLater();
     m_currentReply = nullptr;
     m_sseParser.reset();
     m_accumulatedResponse.clear();
+}
+
+// ============================================================================
+// 公共静态辅助
+// ============================================================================
+
+QString LLMProvider::extractApiErrorMessage(const QByteArray &payload,
+                                            const QString &fallback)
+{
+    if (payload.isEmpty()) return fallback;
+
+    const QJsonDocument doc = QJsonDocument::fromJson(payload);
+    if (!doc.isObject()) return fallback;
+
+    const QJsonObject root = doc.object();
+
+    // 形式一：{"error": {"message": "..."}}
+    if (root.value("error").isObject()) {
+        const QString msg = root.value("error").toObject().value("message").toString();
+        if (!msg.isEmpty()) return msg;
+    }
+
+    // 形式二：{"message": "..."}（部分代理 / 错误网关使用）
+    const QString msg = root.value("message").toString();
+    if (!msg.isEmpty()) return msg;
+
+    return fallback;
+}
+
+QString LLMProvider::flattenTextAttachments(const QList<Attachment> &attachments)
+{
+    QString out;
+    for (const auto &att : attachments) {
+        if (att.type == Attachment::TextFile) {
+            out += QStringLiteral("[File: %1]\n%2\n\n")
+                       .arg(att.fileName, att.textContent);
+        }
+    }
+    return out;
 }
