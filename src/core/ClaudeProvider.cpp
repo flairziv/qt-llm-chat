@@ -1,4 +1,5 @@
 #include "ClaudeProvider.h"
+#include "NetworkRequestUtils.h"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -58,6 +59,7 @@ void ClaudeProvider::sendStreamingRequest(
     request.setUrl(QUrl(m_baseUrl + "/v1/messages"));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+    applyGoogleChromeUserAgent(request);
     request.setRawHeader("x-api-key", m_apiKey.toUtf8());
     request.setRawHeader("anthropic-version", "2023-06-01");
 

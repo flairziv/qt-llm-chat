@@ -40,6 +40,7 @@ set(HEADERS
     src/core/ClaudeProvider.h
     src/core/OpenAIProvider.h
     src/core/GeminiProvider.h
+    src/core/NetworkRequestUtils.h
     src/core/SSEParser.h
     src/core/ChatSession.h
     src/core/SessionManager.h
