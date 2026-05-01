@@ -35,35 +35,35 @@ QList<SSEEvent> SSEParser::feed(const QByteArray &bytes)
     QList<SSEEvent> events;
 
     // 循环提取所有完整的事件块（以双换行符分隔）
+    // 关键优化：只前移读偏移 m_pos，不在每次事件后都做 m_buffer = m_buffer.mid(...)；
+    // 否则单次 readyRead 收到 N 个事件、缓冲区有 M 字节时，开销是 O(N*M)。
     while (true) {
         // 优先查找 Unix 风格换行 \n\n
-        int idx = m_buffer.indexOf("\n\n");
+        int idx = m_buffer.indexOf("\n\n", m_pos);
+        int sepLen = 2;
         if (idx == -1) {
             // 退而查找 Windows 风格换行 \r\n\r\n
-            idx = m_buffer.indexOf("\r\n\r\n");
+            idx = m_buffer.indexOf("\r\n\r\n", m_pos);
             if (idx == -1) break;  // 没有完整事件，退出等待更多数据
-
-            // 提取 \r\n\r\n 之前的内容作为事件块
-            QByteArray block = m_buffer.left(idx);
-            // 跳过事件块 + 4 字节分隔符（\r\n\r\n）
-            m_buffer = m_buffer.mid(idx + 4);
-
-            SSEEvent event = parseBlock(block);
-            if (!event.data.isEmpty()) {
-                events.append(event);
-            }
-            continue;
+            sepLen = 4;
         }
 
-        // 提取 \n\n 之前的内容作为事件块
-        QByteArray block = m_buffer.left(idx);
-        // 跳过事件块 + 2 字节分隔符（\n\n）
-        m_buffer = m_buffer.mid(idx + 2);
+        // 提取分隔符之前的内容作为事件块，前移读偏移
+        QByteArray block = m_buffer.mid(m_pos, idx - m_pos);
+        m_pos = idx + sepLen;
 
         SSEEvent event = parseBlock(block);
         if (!event.data.isEmpty()) {
             events.append(event);
         }
+    }
+
+    // 周期性压缩缓冲区：
+    // - 已消费部分超过 64KB 时回收（防止长会话下 m_buffer 无界增长）
+    // - 缓冲区已被完全消费时也立刻回收，避免下一帧 indexOf 在脏数据上空跑
+    if (m_pos >= 65536 || m_pos == m_buffer.size()) {
+        m_buffer.remove(0, m_pos);
+        m_pos = 0;
     }
 
     return events;
@@ -82,6 +82,7 @@ QList<SSEEvent> SSEParser::feed(const QByteArray &bytes)
 void SSEParser::reset()
 {
     m_buffer.clear();
+    m_pos = 0;
 }
 
 // ============================================================

@@ -90,4 +90,5 @@ private:
     SSEEvent parseBlock(const QByteArray &block);
 
     QByteArray m_buffer;  // 内部缓冲区，累积未解析完的原始字节
+    int m_pos = 0;        // 已消费部分的读偏移（避免每次事件后做 m_buffer.mid 拷贝）
 };
