@@ -1,4 +1,5 @@
 #include "LLMProvider.h"
+#include "NetworkRequestUtils.h"
 #include <QJsonDocument>
 #include <QJsonObject>
 
@@ -184,4 +185,14 @@ QString LLMProvider::flattenTextAttachments(const QList<Attachment> &attachments
         }
     }
     return out;
+}
+
+QNetworkRequest LLMProvider::makeJsonRequest(const QUrl &url)
+{
+    QNetworkRequest request;
+    request.setUrl(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+    applyGoogleChromeUserAgent(request);
+    return request;
 }

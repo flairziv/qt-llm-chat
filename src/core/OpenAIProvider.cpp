@@ -1,5 +1,4 @@
 #include "OpenAIProvider.h"
-#include "NetworkRequestUtils.h"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -50,11 +49,7 @@ void OpenAIProvider::sendStreamingRequest(
         return;
     }
 
-    QNetworkRequest request;
-    request.setUrl(QUrl(m_baseUrl + "/v1/chat/completions"));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
-    applyGoogleChromeUserAgent(request);
+    QNetworkRequest request = makeJsonRequest(QUrl(m_baseUrl + "/v1/chat/completions"));
     request.setRawHeader("Authorization", ("Bearer " + m_apiKey).toUtf8());
 
     QJsonObject body;

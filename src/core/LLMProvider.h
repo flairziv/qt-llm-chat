@@ -67,6 +67,19 @@ public:
      */
     static QString flattenTextAttachments(const QList<Attachment> &attachments);
 
+    /**
+     * @brief 构造一个发往 LLM API 的标准 JSON 请求对象
+     *
+     * 统一三家 Provider 都需要的请求基础设置：
+     *   - Content-Type: application/json
+     *   - 显式禁用 HTTP/2（部分代理对 HTTP/2 + SSE 兼容性差）
+     *   - 伪装 Chrome 浏览器 User-Agent（绕过部分网关的简单 UA 检查）
+     *
+     * 鉴权头（Authorization / x-api-key / anthropic-version 等）和传输超时
+     * 由调用方根据自家 API 形态自行追加。
+     */
+    static QNetworkRequest makeJsonRequest(const QUrl &url);
+
 signals:
     /** @brief 收到一个新的流式 token 时发射 */
     void tokenReceived(const QString &token);

@@ -1,5 +1,4 @@
 #include "GeminiProvider.h"
-#include "NetworkRequestUtils.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -35,11 +34,7 @@ void GeminiProvider::sendStreamingRequest(
     const QString url = QStringLiteral("%1/v1beta/models/%2:streamGenerateContent?alt=sse&key=%3")
                             .arg(m_baseUrl, m_model, m_apiKey);
 
-    QNetworkRequest request;
-    request.setUrl(QUrl(url));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
-    applyGoogleChromeUserAgent(request);
+    QNetworkRequest request = makeJsonRequest(QUrl(url));
 
     QJsonObject body;
 
