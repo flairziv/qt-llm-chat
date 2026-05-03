@@ -245,7 +245,7 @@ void AsciiArtPage::setupUI()
         int charW = fm.horizontalAdvance('M');
         int charH = fm.height();
 
-        QStringList lines = ascii.split('\n', QString::SkipEmptyParts);
+        QStringList lines = ascii.split('\n', Qt::SkipEmptyParts);
         int imgW = charW * width + 16;       // 左右各 8px 边距
         int imgH = charH * lines.size() + 16;
 
