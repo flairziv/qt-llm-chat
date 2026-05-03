@@ -64,7 +64,12 @@ private slots:
 private:
     void setupUI();
     bool eventFilter(QObject *obj, QEvent *event) override;
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragLeaveEvent(QDragLeaveEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;
     void addAttachmentFromFile(const QString &filePath);
+    void addAttachmentFromImage(const QImage &image);
     void refreshAttachmentPreview();
     void clearAttachments();
     static bool isImageFile(const QString &suffix);
@@ -93,4 +98,7 @@ private:
 
     QString m_userName = "You";
     QString m_assistantName = "Assistant";
+
+    // 拖拽视觉反馈：dragEnter 期间在 ChatPage 边缘画一圈虚线，drop / leave 后清除
+    bool m_dragHighlight = false;
 };

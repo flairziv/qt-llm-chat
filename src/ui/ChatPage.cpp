@@ -6,12 +6,18 @@
 
 #include <ElaComboBox.h>
 #include <ElaPushButton.h>
+#include <QBuffer>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHBoxLayout>
+#include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMimeData>
+#include <QPainter>
 #include <QScrollBar>
 #include <QSplitter>
 #include <QStringList>
@@ -23,6 +29,9 @@ ChatPage::ChatPage(AppSettings *settings, QWidget *parent)
     , m_settings(settings)
 {
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    // 启用拖拽：dragEnter / dragLeave / drop / paintEvent 由本类统一处理。
+    // m_inputEdit 自己也接收拖拽事件（QTextEdit 默认行为），创建时会显式关掉。
+    setAcceptDrops(true);
     setupUI();
     refreshPromptTemplates();
 
@@ -127,6 +136,7 @@ void ChatPage::setupUI()
     m_inputEdit->setPlaceholderText("Type a message... (Enter to send, Shift+Enter for newline)");
     m_inputEdit->setMaximumHeight(120);
     m_inputEdit->setFixedHeight(44);
+    m_inputEdit->setAcceptDrops(false); // 拖拽统一由 ChatPage 处理，避免事件被 QTextEdit 吞掉
     m_inputEdit->installEventFilter(this);
 
     m_sendButton = new ElaPushButton("Send", inputBar);
@@ -471,4 +481,94 @@ void ChatPage::refreshPromptTemplates()
         });
         m_promptLayout->insertWidget(m_promptLayout->count() - 1, btn);
     }
+}
+
+// ============================================================================
+// 拖拽事件 —— 支持拖拽文件 / 图片到聊天区添加为附件
+// ============================================================================
+
+/** @brief 拖入时检查是否包含文件 URL 或图片数据，并触发虚线高亮 */
+void ChatPage::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasUrls() || event->mimeData()->hasImage()) {
+        event->acceptProposedAction();
+        if (!m_dragHighlight) {
+            m_dragHighlight = true;
+            update();
+        }
+    }
+}
+
+/** @brief 拖动离开窗口：清除虚线高亮 */
+void ChatPage::dragLeaveEvent(QDragLeaveEvent *event)
+{
+    Q_UNUSED(event)
+    if (m_dragHighlight) {
+        m_dragHighlight = false;
+        update();
+    }
+}
+
+/** @brief 拖放释放：遍历所有文件 URL，逐个添加为附件 */
+void ChatPage::dropEvent(QDropEvent *event)
+{
+    if (m_dragHighlight) {
+        m_dragHighlight = false;
+        update();
+    }
+    const QMimeData *mimeData = event->mimeData();
+    if (mimeData->hasUrls()) {
+        for (const QUrl &url : mimeData->urls()) {
+            if (url.isLocalFile()) {
+                addAttachmentFromFile(url.toLocalFile());
+            }
+        }
+        event->acceptProposedAction();
+    } else if (mimeData->hasImage()) {
+        QImage image = qvariant_cast<QImage>(mimeData->imageData());
+        if (!image.isNull()) {
+            addAttachmentFromImage(image);
+            event->acceptProposedAction();
+        }
+    }
+}
+
+/** @brief 拖拽进行时在 ChatPage 边缘画一圈虚线，提示用户可以释放附件 */
+void ChatPage::paintEvent(QPaintEvent *event)
+{
+    QWidget::paintEvent(event);
+    if (!m_dragHighlight) return;
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing, true);
+    QPen pen(QColor("#10a37f"), 3, Qt::DashLine);
+    pen.setCosmetic(true);
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush);
+    // 内缩 4px 让虚线完整可见，不被父布局裁掉
+    p.drawRoundedRect(rect().adjusted(4, 4, -4, -4), 8, 8);
+}
+
+/**
+ * @brief 把内存中的 QImage（剪贴板粘贴 / 拖入图片数据）添加为图片附件
+ *
+ * 没有文件路径，文件名固定为 "clipboard.png"。超过 2048px 的边按比例缩小，
+ * 编码成 PNG 后写入 m_pendingAttachments。
+ */
+void ChatPage::addAttachmentFromImage(const QImage &image)
+{
+    Attachment att;
+    att.type = Attachment::Image;
+    att.fileName = "clipboard.png";
+    att.mimeType = "image/png";
+
+    QImage img = image;
+    if (img.width() > 2048 || img.height() > 2048) {
+        img = img.scaled(2048, 2048, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+    QBuffer buffer(&att.fileData);
+    buffer.open(QIODevice::WriteOnly);
+    img.save(&buffer, "PNG");
+
+    m_pendingAttachments.append(att);
+    refreshAttachmentPreview();
 }
