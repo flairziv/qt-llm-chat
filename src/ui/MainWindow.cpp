@@ -1,6 +1,5 @@
 #include "MainWindow.h"
 #include "ChatPage.h"
-#include "CompareModePage.h"
 #include "AnalyticsPage.h"
 #include "AsciiArtPage.h"
 #include "SettingClaudePage.h"
@@ -168,10 +167,6 @@ void MainWindow::setupPages()
     QString activeProvider = m_settings->activeProvider();
     int idx = (activeProvider == "openai") ? 1 : (activeProvider == "gemini") ? 2 : 0;
     m_chatPage->setProviderIndex(idx);
-
-    // 模型对比页 —— 同时向 Claude / OpenAI 发请求并并排展示
-    m_comparePage = new CompareModePage(m_settings, m_nam, this);
-    addPageNode("Compare", m_comparePage, ElaIconType::ScaleBalanced);
 
     // 会话分析页 —— 统计所有会话的数据
     m_analyticsPage = new AnalyticsPage(m_sessionManager, this);
