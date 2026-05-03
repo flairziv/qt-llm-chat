@@ -20,12 +20,16 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QInputDialog>
+#include <QLabel>
 #include <QLineEdit>
 #include <QShortcut>
 #include <QMediaPlayer>
 #include <QDebug>
 #include <QTimer>
+#include <QVBoxLayout>
 #include <QRandomGenerator>
+
+#include "ElaContentDialog.h"
 
 // ============================================================================
 // 构造 / 析构
@@ -442,6 +446,49 @@ void MainWindow::onNewChat()
 void MainWindow::onDeleteChat(const QString &sessionId)
 {
     if (m_isStreaming) return;
+
+    // 删除前再确认：sessions/{uuid}.json 会被清掉，且当前会话内的所有消息都会丢失。
+    ChatSession *target = m_sessionManager->session(sessionId);
+    const QString title = target ? target->title() : QStringLiteral("this session");
+
+    ElaContentDialog dlg(this);
+    dlg.setWindowTitle(QStringLiteral("Delete Session"));
+    // 用 QWidget + QVBoxLayout 包一下：直接 setCentralWidget(QLabel) 的话
+    // ElaContentDialog 内部会按 sizeHint 给一个非常贴边的尺寸，看起来很挤。
+    QWidget *content = new QWidget(&dlg);
+    QVBoxLayout *layout = new QVBoxLayout(content);
+    layout->setContentsMargins(24, 24, 24, 12);
+    layout->setSpacing(8);
+    QLabel *body = new QLabel(content);
+    body->setText(QStringLiteral("Delete \"%1\"?").arg(title));
+    QFont titleFont = body->font();
+    titleFont.setPointSize(qMax(titleFont.pointSize(), 11));
+    body->setFont(titleFont);
+    body->setWordWrap(true);
+    QLabel *hint = new QLabel(content);
+    hint->setText(QStringLiteral("This will permanently remove the session and its messages."));
+    hint->setWordWrap(true);
+    hint->setStyleSheet(QStringLiteral("color: rgba(128, 128, 128, 0.85);"));
+    layout->addWidget(body);
+    layout->addWidget(hint);
+    // 显式撑开尺寸：ElaContentDialog 按 centralWidget 的 sizeHint 决定窗口大小，
+    // 但带 wordWrap 的 QLabel 在未确定宽度前 sizeHint().height() 偏小，
+    // 结果 dialog 会比内容矮，hint 行被底部按钮条遮住。固定 minSize 兜底。
+    {
+        QFontMetrics bodyFm(titleFont);
+        QFontMetrics hintFm(hint->font());
+        const int minH = 24 + bodyFm.height() * 2 + 8 + hintFm.height() * 2 + 12;
+        content->setMinimumSize(420, minH);
+    }
+    dlg.setCentralWidget(content);
+    dlg.setLeftButtonText(QStringLiteral("Cancel"));
+    dlg.setRightButtonText(QStringLiteral("Delete"));
+
+    bool confirmed = false;
+    QObject::connect(&dlg, &ElaContentDialog::rightButtonClicked, [&]() { confirmed = true; });
+    dlg.exec();
+    if (!confirmed) return;
+
     m_sessionManager->deleteSession(sessionId);
 
     ChatSession *active = m_sessionManager->activeSession();
