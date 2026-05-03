@@ -487,7 +487,10 @@ void MainWindow::onExportSession(const QString &sessionId)
     if (fileName.isEmpty()) {
         fileName = "session";
     }
-    fileName.replace(QRegularExpression(QStringLiteral("[\\\\/:*?\"<>|]")), "_");
+    // 文件名非法字符替换为下划线；正则为静态常量，避免每次导出重新编译
+    static const QRegularExpression kInvalidFileNameChars(
+        QStringLiteral("[\\\\/:*?\"<>|]"));
+    fileName.replace(kInvalidFileNameChars, "_");
 
     const QString filePath = QFileDialog::getSaveFileName(
         this,
@@ -642,9 +645,10 @@ void MainWindow::onTokenReceived(const QString &token)
     if (closeBracket >= 0) {
         m_emotionTagParsed = true;
 
-        // 用正则提取 [情绪名]
-        QRegularExpression re(QStringLiteral("^\\s*\\[([^\\]]+)\\]"));
-        QRegularExpressionMatch match = re.match(m_tokenBuffer);
+        // 用正则提取 [情绪名]；正则为静态常量，避免每个 token 都重新编译
+        static const QRegularExpression reEmotionTag(
+            QStringLiteral("^\\s*\\[([^\\]]+)\\]"));
+        QRegularExpressionMatch match = reEmotionTag.match(m_tokenBuffer);
 
         if (match.hasMatch()) {
             QString emotion = match.captured(1);
@@ -683,9 +687,11 @@ void MainWindow::onResponseFinished(const QString &fullResponse)
     // 从完整回复中剥离开头的 [情绪名] 标签
     QString cleanResponse = fullResponse;
     if (m_tachieEnabled && m_tachieWindow) {
-        QRegularExpression re(QStringLiteral("^\\s*\\[[^\\]]+\\]\\s*"));
+        // 正则为静态常量，每次响应完成只引用编译好的实例
+        static const QRegularExpression reEmotionTagStrip(
+            QStringLiteral("^\\s*\\[[^\\]]+\\]\\s*"));
         cleanResponse = fullResponse;
-        cleanResponse.remove(re);
+        cleanResponse.remove(reEmotionTagStrip);
 
         // 替换气泡内容为干净文本（去除标签）
         m_chatPage->replaceLastBubbleContent(cleanResponse);
