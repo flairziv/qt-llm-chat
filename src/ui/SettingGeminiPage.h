@@ -13,11 +13,7 @@ public:
     explicit SettingGeminiPage(AppSettings *settings, QWidget *parent = nullptr);
     ~SettingGeminiPage();
 
-    void loadSettings();
-
 private:
-    void connectAutoSave();
-
     Ui::SettingGeminiPage *ui;
     AppSettings *m_settings;
 };

@@ -18,9 +18,8 @@ namespace Ui { class SettingClaudePage; }
  *   SettingClaudePage.cpp 中通过 ui->setupUi(this) 实例化界面
  *   通过 ui->lineEdit_apiKey / ui->comboBox_model 等访问控件
  *
- * 功能：
- * - 加载并显示当前 Claude API 配置（API Key、Base URL、Model）
- * - 用户修改任一字段后自动保存到 AppSettings 并发射 settingsChanged 信号
+ * 控件↔AppSettings 的双向绑定由 ProviderSettingHelpers 的 inline helper
+ * 完成（构造函数里 bindLineEdit / bindComboBox / bindReasoningComboBox）。
  */
 class SettingClaudePage : public QWidget
 {
@@ -34,13 +33,7 @@ public:
     explicit SettingClaudePage(AppSettings *settings, QWidget *parent = nullptr);
     ~SettingClaudePage();
 
-    /** @brief 从 AppSettings 加载配置并更新 UI 控件 */
-    void loadSettings();
-
 private:
-    /** @brief 将每个输入控件的 textChanged 信号连接到自动保存逻辑 */
-    void connectAutoSave();
-
     Ui::SettingClaudePage *ui;  // 由 .ui 文件生成的界面对象指针
     AppSettings *m_settings;    // 全局配置（不持有所有权）
 };

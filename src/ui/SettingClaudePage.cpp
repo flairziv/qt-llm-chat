@@ -1,8 +1,7 @@
 #include "SettingClaudePage.h"
 #include "ui_SettingClaudePage.h"
+#include "ProviderSettingHelpers.h"
 #include "core/AppSettings.h"
-#include <QComboBox>
-#include <QLineEdit>
 
 SettingClaudePage::SettingClaudePage(AppSettings *settings, QWidget *parent)
     : QWidget(parent)
@@ -11,54 +10,29 @@ SettingClaudePage::SettingClaudePage(AppSettings *settings, QWidget *parent)
 {
     ui->setupUi(this);
     ui->scrollArea->viewport()->setAutoFillBackground(false);
-    loadSettings();
-    connectAutoSave();
+
+    using namespace ProviderSettingHelpers;
+    AppSettings *s = m_settings;
+
+    // 让 Claude 模型下拉框允许手动输入（与 OpenAI / Gemini 行为一致），
+    // 方便填新发布但 .ui 里还没列的型号或第三方代理转发的别名。
+    ui->comboBox_model->setEditable(true);
+
+    bindLineEdit(ui->lineEdit_apiKey,
+                 [s] { return s->claudeApiKey(); },
+                 [s](const QString &t) { s->setClaudeApiKey(t); });
+    bindLineEdit(ui->lineEdit_baseUrl,
+                 [s] { return s->claudeBaseUrl(); },
+                 [s](const QString &t) { s->setClaudeBaseUrl(t); });
+    bindComboBox(ui->comboBox_model,
+                 [s] { return s->claudeModel(); },
+                 [s](const QString &t) { s->setClaudeModel(t); });
+    bindReasoningComboBox(ui->comboBox_reasoning,
+                          [s] { return s->claudeReasoningEffort(); },
+                          [s](const QString &t) { s->setClaudeReasoningEffort(t); });
 }
 
 SettingClaudePage::~SettingClaudePage()
 {
     delete ui;
-}
-
-void SettingClaudePage::loadSettings()
-{
-    ui->lineEdit_apiKey->setText(m_settings->claudeApiKey());
-    ui->lineEdit_baseUrl->setText(m_settings->claudeBaseUrl());
-
-    QString model = m_settings->claudeModel();
-    int idx = ui->comboBox_model->findText(model);
-    if (idx >= 0) {
-        ui->comboBox_model->setCurrentIndex(idx);
-    } else if (!model.isEmpty()) {
-        ui->comboBox_model->addItem(model);
-        ui->comboBox_model->setCurrentText(model);
-    }
-
-    QString reasoningEffort = m_settings->claudeReasoningEffort();
-    if (reasoningEffort.isEmpty()) {
-        reasoningEffort = "default";
-    }
-    idx = ui->comboBox_reasoning->findText(reasoningEffort);
-    if (idx >= 0) {
-        ui->comboBox_reasoning->setCurrentIndex(idx);
-    } else {
-        ui->comboBox_reasoning->addItem(reasoningEffort);
-        ui->comboBox_reasoning->setCurrentText(reasoningEffort);
-    }
-}
-
-void SettingClaudePage::connectAutoSave()
-{
-    connect(ui->lineEdit_apiKey, &QLineEdit::textChanged, this, [this](const QString &text) {
-        m_settings->setClaudeApiKey(text);
-    });
-    connect(ui->lineEdit_baseUrl, &QLineEdit::textChanged, this, [this](const QString &text) {
-        m_settings->setClaudeBaseUrl(text);
-    });
-    connect(ui->comboBox_model, &QComboBox::currentTextChanged, this, [this](const QString &text) {
-        m_settings->setClaudeModel(text);
-    });
-    connect(ui->comboBox_reasoning, &QComboBox::currentTextChanged, this, [this](const QString &text) {
-        m_settings->setClaudeReasoningEffort(text == "default" ? QString() : text);
-    });
 }

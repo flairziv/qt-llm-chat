@@ -55,6 +55,7 @@ set(HEADERS
     src/ui/SettingGeminiPage.h
     src/ui/SettingOpenAIPage.h
     src/ui/SettingGeneralPage.h
+    src/ui/ProviderSettingHelpers.h
     src/ui/TachieWindow.h
 )
 
