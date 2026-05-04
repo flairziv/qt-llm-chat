@@ -12,7 +12,7 @@ public:
                    const QString &model,
                    QObject *parent = nullptr);
 
-    void sendStreamingRequest(
+    void doSendStreamingRequest(
         const QList<ChatMessage> &messages,
         const QString &systemPrompt,
         int maxTokens,
@@ -26,7 +26,7 @@ public:
     void setModel(const QString &model) { m_model = model; }
 
 protected:
-    QString parseSSEData(const QByteArray &data) override;
+    LLMProviderParseResult parseSSEData(const QByteArray &data) override;
 
 private:
     QString m_apiKey;

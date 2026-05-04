@@ -12,7 +12,7 @@ public:
                    const QString &reasoningEffort = QString(),
                    QObject *parent = nullptr);
 
-    void sendStreamingRequest(
+    void doSendStreamingRequest(
         const QList<ChatMessage> &messages,
         const QString &systemPrompt,
         int maxTokens,
@@ -27,7 +27,7 @@ public:
     void setReasoningEffort(const QString &effort) { m_reasoningEffort = effort; }
 
 protected:
-    QString parseSSEData(const QByteArray &data) override;
+    LLMProviderParseResult parseSSEData(const QByteArray &data) override;
 
 private:
     QString m_apiKey;

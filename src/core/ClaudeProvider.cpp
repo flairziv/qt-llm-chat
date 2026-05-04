@@ -40,7 +40,7 @@ ClaudeProvider::ClaudeProvider(QNetworkAccessManager *nam,
 {
 }
 
-void ClaudeProvider::sendStreamingRequest(
+void ClaudeProvider::doSendStreamingRequest(
     const QList<ChatMessage> &messages,
     const QString &systemPrompt,
     int maxTokens,
@@ -140,7 +140,7 @@ void ClaudeProvider::sendStreamingRequest(
     connectReplySignals(reply);
 }
 
-QString ClaudeProvider::parseSSEData(const QByteArray &data)
+LLMProviderParseResult ClaudeProvider::parseSSEData(const QByteArray &data)
 {
     QJsonDocument doc = QJsonDocument::fromJson(data);
     if (doc.isNull()) return {};
@@ -148,12 +148,17 @@ QString ClaudeProvider::parseSSEData(const QByteArray &data)
     QJsonObject obj = doc.object();
     QString type = obj["type"].toString();
 
+    LLMProviderParseResult result;
     if (type == "content_block_delta") {
         QJsonObject delta = obj["delta"].toObject();
-        if (delta["type"].toString() == "text_delta") {
-            return delta["text"].toString();
+        const QString deltaType = delta["type"].toString();
+        if (deltaType == "text_delta") {
+            result.contentToken = delta["text"].toString();
+        } else if (deltaType == "thinking_delta") {
+            // 扩展思考块的增量内容（adaptive thinking 启用时由模型产出）
+            result.reasoningToken = delta["thinking"].toString();
         }
+        // signature_delta 等其他类型：当前不展示，跳过
     }
-
-    return {};
+    return result;
 }

@@ -2,6 +2,7 @@
 #include "NetworkRequestUtils.h"
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QTimer>
 
 // ============================================================================
 // 构造 / 析构
@@ -11,6 +12,13 @@ LLMProvider::LLMProvider(QNetworkAccessManager *nam, QObject *parent)
     : QObject(parent)
     , m_nam(nam)
 {
+    m_retryTimer = new QTimer(this);
+    m_retryTimer->setSingleShot(true);
+    connect(m_retryTimer, &QTimer::timeout, this, [this]() {
+        // 退避结束 → 用缓存的参数走 doSendStreamingRequest（不重置 m_retryAttempt）
+        doSendStreamingRequest(m_lastMessages, m_lastSystemPrompt,
+                               m_lastMaxTokens, m_lastTemperature);
+    });
 }
 
 LLMProvider::~LLMProvider()
@@ -23,14 +31,35 @@ LLMProvider::~LLMProvider()
 // 公共方法
 // ============================================================================
 
+void LLMProvider::sendStreamingRequest(
+    const QList<ChatMessage> &messages,
+    const QString &systemPrompt,
+    int maxTokens,
+    double temperature)
+{
+    // 缓存参数：5xx / 429 自动重试时复用同一份上下文，避免子类各自 cache。
+    m_lastMessages = messages;
+    m_lastSystemPrompt = systemPrompt;
+    m_lastMaxTokens = maxTokens;
+    m_lastTemperature = temperature;
+    // 外部新一轮调用：清零退避计数。abort() 也会触发，但这里再写一次以防漏掉
+    // 极端情况（比如 abort() 还没来得及跑就被新调用覆盖）。
+    m_retryAttempt = 0;
+    if (m_retryTimer) m_retryTimer->stop();
+    doSendStreamingRequest(messages, systemPrompt, maxTokens, temperature);
+}
+
 /**
  * @brief 中止当前正在进行的网络请求
  *
  * 调用 QNetworkReply::abort() 取消请求，
  * 随后通过 deleteLater() 安全释放回复对象，并重置指针。
+ * 同时停止退避中的重试定时器（若有），避免延迟期被 Esc 中止后还冒出请求。
  */
 void LLMProvider::abort()
 {
+    if (m_retryTimer) m_retryTimer->stop();
+    m_retryAttempt = 0;
     if (m_currentReply) {
         m_currentReply->abort();
         m_currentReply->deleteLater();
@@ -70,8 +99,9 @@ void LLMProvider::connectReplySignals(QNetworkReply *reply)
  * 1. 从 m_currentReply 读取所有新到达的字节数据
  * 2. 将数据喂给 SSEParser，解析出完整的 SSE 事件列表
  * 3. 遍历每个事件，跳过 "done" 类型和空数据
- * 4. 调用子类实现的 parseSSEData() 从事件 data 中提取 token
- * 5. 将 token 累积到 m_accumulatedResponse 并发射 tokenReceived 信号
+ * 4. 调用子类实现的 parseSSEData() 把单条 event 拆成 content / reasoning 两路 token
+ * 5. reasoning 走独立信号 reasoningTokenReceived（不计入 m_accumulatedResponse）
+ * 6. content 累积到 m_accumulatedResponse 并发射 tokenReceived
  */
 void LLMProvider::onReadyRead()
 {
@@ -84,10 +114,17 @@ void LLMProvider::onReadyRead()
         if (event.eventType == "done") continue;   // 流结束标记，跳过
         if (event.data.isEmpty()) continue;         // 空数据事件，跳过
 
-        QString token = parseSSEData(event.data);   // 子类负责具体解析
-        if (!token.isEmpty()) {
-            m_accumulatedResponse += token;
-            emit tokenReceived(token);
+        const LLMProviderParseResult result = parseSSEData(event.data);
+
+        // reasoning 不计入 m_accumulatedResponse：只走折叠区块 + 持久化字段，
+        // 不参与下一轮请求的上下文，也不会污染 TTS 朗读的 cleanResponse。
+        if (!result.reasoningToken.isEmpty()) {
+            emit reasoningTokenReceived(result.reasoningToken);
+        }
+        // 同一 event 里如果还有正文 token（rare 但合理），照样累积 + 派发。
+        if (!result.contentToken.isEmpty()) {
+            m_accumulatedResponse += result.contentToken;
+            emit tokenReceived(result.contentToken);
         }
     }
 }
@@ -130,22 +167,50 @@ void LLMProvider::onReplyFinished()
  *
  * 优先尝试从响应体中解析 API 返回的结构化错误信息（JSON 格式），
  * 若无法解析则回退到 QNetworkReply::errorString() 提供的通用描述。
- * 发射 errorOccurred 信号后清理所有请求状态。
+ *
+ * HTTP 429 / 5xx：识别为可重试错误，按 1s / 2s / 4s 指数退避，最多 3 次；
+ * 退避期间发射 retryScheduled 让 UI 显示 "Retrying... (n/N)"。耗尽重试次数
+ * 或非可重试错误才走 errorOccurred 让上层报错。
  */
 void LLMProvider::onReplyError(QNetworkReply::NetworkError error)
 {
     Q_UNUSED(error)
     if (!m_currentReply) return;
 
+    const int httpStatus = m_currentReply->attribute(
+        QNetworkRequest::HttpStatusCodeAttribute).toInt();
     const QString fallback = m_currentReply->errorString();
     const QByteArray body = m_currentReply->readAll();
     const QString errorMsg = extractApiErrorMessage(body, fallback);
 
+    // 5xx / 429 视为暂时性故障，做退避重试；
+    // 其他错误（401/403/400 等）通常重试也无效，直接报给上层。
+    const bool retryable = (httpStatus == 429
+                            || (httpStatus >= 500 && httpStatus <= 599));
+    if (retryable && m_retryAttempt < kMaxRetries) {
+        ++m_retryAttempt;
+        const int delayMs = 1000 * (1 << (m_retryAttempt - 1));  // 1s, 2s, 4s
+
+        // 清掉本次失败的请求状态，下一次 doSendStreamingRequest 会建新 reply。
+        m_currentReply->deleteLater();
+        m_currentReply = nullptr;
+        m_sseParser.reset();
+        m_accumulatedResponse.clear();
+
+        emit retryScheduled(m_retryAttempt, kMaxRetries, delayMs);
+        if (m_retryTimer) {
+            m_retryTimer->start(delayMs);
+        }
+        return;
+    }
+
+    // 不可重试，或重试次数用尽：按错误处理
     emit errorOccurred(errorMsg);
     m_currentReply->deleteLater();
     m_currentReply = nullptr;
     m_sseParser.reset();
     m_accumulatedResponse.clear();
+    m_retryAttempt = 0;
 }
 
 // ============================================================================

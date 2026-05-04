@@ -35,7 +35,7 @@ OpenAIProvider::OpenAIProvider(QNetworkAccessManager *nam,
 {
 }
 
-void OpenAIProvider::sendStreamingRequest(
+void OpenAIProvider::doSendStreamingRequest(
     const QList<ChatMessage> &messages,
     const QString &systemPrompt,
     int maxTokens,
@@ -120,7 +120,7 @@ void OpenAIProvider::sendStreamingRequest(
     connectReplySignals(reply);
 }
 
-QString OpenAIProvider::parseSSEData(const QByteArray &data)
+LLMProviderParseResult OpenAIProvider::parseSSEData(const QByteArray &data)
 {
     QJsonDocument doc = QJsonDocument::fromJson(data);
     if (doc.isNull()) return {};
@@ -129,10 +129,22 @@ QString OpenAIProvider::parseSSEData(const QByteArray &data)
     QJsonArray choices = obj["choices"].toArray();
     if (choices.isEmpty()) return {};
 
-    QJsonObject delta = choices[0].toObject()["delta"].toObject();
-    if (delta.contains("content")) {
-        return delta["content"].toString();
+    LLMProviderParseResult result;
+    // 先把 reasoning 增量从 choices[*].delta.reasoning_content / .reasoning 里抽出来。
+    // 不要在 content 不为空时跳过：同一 event 里可能 *同时* 有 content（部分代理 / 实验性 API
+    // 这么发），早 return 会丢正文，导致 cleanResponse 为空 → TTS 不出声。
+    for (const auto &c : choices) {
+        const QJsonObject delta = c.toObject().value("delta").toObject();
+        const QString rc = delta.value("reasoning_content").toString();
+        if (!rc.isEmpty()) result.reasoningToken += rc;
+        const QJsonValue rv = delta.value("reasoning");
+        if (rv.isString()) result.reasoningToken += rv.toString();
     }
 
-    return {};
+    QJsonObject delta = choices[0].toObject()["delta"].toObject();
+    if (delta.contains("content")) {
+        result.contentToken = delta["content"].toString();
+    }
+
+    return result;
 }

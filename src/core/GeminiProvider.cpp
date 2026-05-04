@@ -17,7 +17,7 @@ GeminiProvider::GeminiProvider(QNetworkAccessManager *nam,
 {
 }
 
-void GeminiProvider::sendStreamingRequest(
+void GeminiProvider::doSendStreamingRequest(
     const QList<ChatMessage> &messages,
     const QString &systemPrompt,
     int maxTokens,
@@ -99,7 +99,7 @@ void GeminiProvider::sendStreamingRequest(
     connectReplySignals(reply);
 }
 
-QString GeminiProvider::parseSSEData(const QByteArray &data)
+LLMProviderParseResult GeminiProvider::parseSSEData(const QByteArray &data)
 {
     const QJsonDocument doc = QJsonDocument::fromJson(data);
     if (doc.isNull()) return {};
@@ -111,5 +111,7 @@ QString GeminiProvider::parseSSEData(const QByteArray &data)
     const QJsonArray parts = content.value("parts").toArray();
     if (parts.isEmpty()) return {};
 
-    return parts[0].toObject().value("text").toString();
+    LLMProviderParseResult result;
+    result.contentToken = parts[0].toObject().value("text").toString();
+    return result;
 }

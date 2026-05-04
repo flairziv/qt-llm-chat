@@ -3,8 +3,24 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QList>
+#include <QString>
 #include "ChatSession.h"
 #include "SSEParser.h"
+
+class QTimer;
+
+/**
+ * @brief 单个 SSE 事件解析结果
+ *
+ * parseSSEData() 把单条 SSE event 的 data 拆成正文 token + reasoning token，
+ * 两者可同时非空（部分代理 / 实验性 API 会在同一 event 里既给 content 又给
+ * reasoning_content；分离两路就不会丢正文导致 TTS 失静）。基类 onReadyRead
+ * 看见哪一路非空就 emit 对应的信号；都为空时整条 event 丢掉。
+ */
+struct LLMProviderParseResult {
+    QString contentToken;
+    QString reasoningToken;
+};
 
 /**
  * @brief LLM 服务提供者的抽象基类
@@ -28,24 +44,34 @@ public:
     virtual ~LLMProvider();
 
     /**
-     * @brief 发送流式聊天请求（纯虚函数，子类必须实现）
+     * @brief 发送流式聊天请求（基类提供具体实现，封装重试逻辑）
      * @param messages     聊天消息列表（包含历史上下文）
      * @param systemPrompt 系统提示词，用于设定模型行为
      * @param maxTokens    最大生成 token 数
      * @param temperature  采样温度，控制输出随机性（0.0 - 2.0）
+     *
+     * 行为：
+     *   - 缓存请求参数（用于 5xx / 429 自动重试）
+     *   - 把 m_retryAttempt 重置为 0
+     *   - 通过 doSendStreamingRequest() 派发给子类去发起真正的网络请求
+     *
+     * 子类只需实现 doSendStreamingRequest()，不应再覆盖此方法。
      */
-    virtual void sendStreamingRequest(
+    void sendStreamingRequest(
         const QList<ChatMessage> &messages,
         const QString &systemPrompt,
         int maxTokens,
         double temperature
-    ) = 0;
+    );
 
     /** @brief 中止当前正在进行的网络请求 */
     virtual void abort();
 
     /** @brief 返回提供者名称（如 "OpenAI"、"DeepSeek"），子类必须实现 */
     virtual QString providerName() const = 0;
+
+    /** @brief 获取当前已累积的流式响应文本（用于中止时保存部分回复） */
+    QString accumulatedResponse() const { return m_accumulatedResponse; }
 
     /**
      * @brief 从 API 错误响应体中提取人类可读的 message
@@ -81,14 +107,45 @@ public:
     static QNetworkRequest makeJsonRequest(const QUrl &url);
 
 signals:
-    /** @brief 收到一个新的流式 token 时发射 */
+    /** @brief 收到一个新的流式正文 token 时发射 */
     void tokenReceived(const QString &token);
+
+    /**
+     * @brief 收到 reasoning（思考链）token 时发射
+     *
+     * Claude 的 thinking_delta、OpenAI / DeepSeek 的 delta.reasoning_content
+     * 走这个通道，与正文 tokenReceived 分开传输。MainWindow 把 reasoning 缓冲
+     * 起来作为消息的独立字段持久化、并驱动 MessageBubble 的折叠区块显示。
+     */
+    void reasoningTokenReceived(const QString &token);
 
     /** @brief 流式响应全部完成时发射，携带完整的累积响应文本 */
     void responseFinished(const QString &fullResponse);
 
     /** @brief 发生错误时发射，携带错误描述信息 */
     void errorOccurred(const QString &errorMessage);
+
+    /**
+     * @brief 图片生成请求已发出但响应未到（用于 UI 显示 shimmer 占位符）
+     *
+     * 在 OpenAIProvider 的图片路径即将 POST 请求时发射；普通对话流式不发射。
+     * count 表示预计生成的图片数量。
+     */
+    void imageGenerationStarted(int count);
+
+    /**
+     * @brief 自动重试已排定（HTTP 429 / 5xx）
+     *
+     * 网络层错误被识别为「可重试」时，基类不会立即 emit errorOccurred，
+     * 而是先发射这个信号、然后按 attempt 序数做指数退避（1s / 2s / 4s）后
+     * 重新调用 doSendStreamingRequest()。MainWindow 监听此信号显示
+     * "Retrying... (n/N)" 状态文字并清空当前 assistant 气泡内容。
+     *
+     * 若 abort()（含 Esc 中止 / settings 改变触发的 createProvider）在退避
+     * 期间被调用，定时器会被停掉，此后不会再 emit retryScheduled，也不会
+     * 再 emit errorOccurred —— 调用方负责自己处理 UI 状态。
+     */
+    void retryScheduled(int attempt, int maxAttempts, int delayMs);
 
 protected:
     QNetworkAccessManager *m_nam;              // 共享的网络访问管理器
@@ -106,11 +163,37 @@ protected:
     void connectReplySignals(QNetworkReply *reply);
 
     /**
-     * @brief 解析单条 SSE 事件的 data 字段，提取生成的文本 token（纯虚函数）
-     * @param data  SSE 事件的原始 data 内容（通常为 JSON）
-     * @return 解析出的文本 token，解析失败或无内容时返回空字符串
+     * @brief 子类实现的实际网络请求发起逻辑（template-method 模式的钩子）
+     *
+     * 公共 sendStreamingRequest() 负责缓存参数 + 重置重试计数后调用此方法。
+     * 自动重试路径在退避结束后也直接调用此方法（不重置计数）。子类只关心
+     * "构造 JSON、加鉴权头、POST"，无需感知重试机制。
      */
-    virtual QString parseSSEData(const QByteArray &data) = 0;
+    virtual void doSendStreamingRequest(
+        const QList<ChatMessage> &messages,
+        const QString &systemPrompt,
+        int maxTokens,
+        double temperature
+    ) = 0;
+
+    /**
+     * @brief 解析单条 SSE 事件的 data 字段，提取文本 token 和 reasoning token
+     * @param data  SSE 事件的原始 data 内容（通常为 JSON）
+     * @return ParseResult { contentToken, reasoningToken }；都为空表示该事件无产出
+     */
+    virtual LLMProviderParseResult parseSSEData(const QByteArray &data) = 0;
+
+private:
+    // --- 自动重试状态 ---
+    // 缓存上一次 sendStreamingRequest 的参数，用于退避后重新触发
+    // doSendStreamingRequest() 时使用同样的上下文。
+    QList<ChatMessage> m_lastMessages;
+    QString m_lastSystemPrompt;
+    int m_lastMaxTokens = 0;
+    double m_lastTemperature = 0.0;
+    int m_retryAttempt = 0;
+    QTimer *m_retryTimer = nullptr;
+    static constexpr int kMaxRetries = 3;
 
 private slots:
     /** @brief 网络回复有新数据可读时触发，负责 SSE 事件解析与 token 分发 */
