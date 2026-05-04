@@ -55,7 +55,8 @@ private slots:
     void onResponseFinished(const QString &fullResponse);
     void onProviderError(const QString &error);
     void onProviderSwitched(const QString &providerName);
-    void onSettingsChanged();
+    void onProviderSettingsChanged();
+    void onUiSettingsChanged();
     void onMessageFavoriteToggle(int index);   // 收藏/取消收藏单条消息
     void onMessageDeleteFromHere(int index);   // 删除该消息及其后的全部消息
 

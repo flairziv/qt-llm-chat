@@ -210,8 +210,10 @@ void MainWindow::setupPages()
  *                                           ↓ 转发给 ChatPage
  *   ChatPage  ←──appendToLastBubble──
  *
- *   SettingXxxPage ──settingsChanged──→ MainWindow::onSettingsChanged
- *                                           ↓ 重建 Provider
+ *   AppSettings ──providerSettingsChanged──→ MainWindow::onProviderSettingsChanged
+ *                                              ↓ 重建 Provider
+ *   AppSettings ──uiSettingsChanged────────→ MainWindow::onUiSettingsChanged
+ *                                              ↓ 刷新角色名 / 立绘资源目录
  *
  *   SessionManager ──sessionCreated/Deleted/Changed──→ ChatPage 列表刷新
  */
@@ -230,11 +232,19 @@ void MainWindow::setupConnections()
     connect(m_chatPage, &ChatPage::messageDeleteFromHereRequested,
             this, &MainWindow::onMessageDeleteFromHere);
 
-    // === 设置页变更信号 ===
-    connect(m_claudePage, &SettingClaudePage::settingsChanged, this, &MainWindow::onSettingsChanged);
-    connect(m_openaiPage, &SettingOpenAIPage::settingsChanged, this, &MainWindow::onSettingsChanged);
-    connect(m_geminiPage, &SettingGeminiPage::settingsChanged, this, &MainWindow::onSettingsChanged);
-    connect(m_generalPage, &SettingGeneralPage::settingsChanged, this, &MainWindow::onSettingsChanged);
+    // === 设置变更信号 ===
+    // 旧路径是「SettingPage::settingsChanged → MainWindow::onSettingsChanged → createProvider()」，
+    // 这意味着任何字段（包括 userName / assistantName 这种纯 UI 字段）的修改都会
+    // 触发 Provider 重建——如果正在流式回复就会被中断。
+    //
+    // 新路径：AppSettings 自己根据字段类型分两路 emit，并做 200ms 防抖。
+    //   providerSettingsChanged → onProviderSettingsChanged → createProvider()
+    //   uiSettingsChanged       → onUiSettingsChanged       → 仅刷新角色名 / 立绘资源
+    // SettingPage::settingsChanged 暂时仍会发射但已无监听者，下个 commit 会清掉它们。
+    connect(m_settings, &AppSettings::providerSettingsChanged,
+            this, &MainWindow::onProviderSettingsChanged);
+    connect(m_settings, &AppSettings::uiSettingsChanged,
+            this, &MainWindow::onUiSettingsChanged);
 
     // === SessionManager 状态变化 → 自动更新 ChatPage ===
     connect(m_sessionManager, &SessionManager::sessionCreated,
@@ -761,12 +771,19 @@ void MainWindow::onProviderError(const QString &error)
 // ============================================================================
 
 /** @brief 任一设置页参数变更后，重建 Provider 以应用新配置 */
-void MainWindow::onSettingsChanged()
+void MainWindow::onProviderSettingsChanged()
 {
+    // API key / baseUrl / model / 推理强度 这类字段变了——重建 Provider，
+    // 让下一次 sendStreamingRequest 走新配置。
     createProvider();
+}
+
+void MainWindow::onUiSettingsChanged()
+{
+    // 角色名 / 立绘资源目录这类纯 UI 字段，无需碰 Provider，
+    // 否则会在用户编辑时频繁中断正在进行的流式回复。
     m_chatPage->updateRoleNames(m_settings->userName(), m_settings->assistantName());
 
-    // 立绘角色可能变化，更新资源目录
     if (m_tachieWindow) {
         QString newDir = QCoreApplication::applicationDirPath() + "/config/" + m_settings->tachieResourceDir();
         m_tachieWindow->setResourceDir(newDir);

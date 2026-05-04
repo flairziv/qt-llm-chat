@@ -3,65 +3,52 @@
 #include <QSettings>
 #include <QString>
 
+class QTimer;
+
 /**
  * @brief 应用配置管理类
  *
  * 封装 QSettings，负责读写 settings.ini 配置文件。
- * 管理三类配置：Claude API、OpenAI API、通用设置。
+ * 管理：Claude / OpenAI / Gemini API、立绘 / TTS / 通用设置。
  *
- * 设计模式：
- * - 每个配置项提供 getter/setter 对
- * - setter 内部执行：setValue → sync（写入磁盘）→ emit settingsChanged
- * - getter 提供默认值，首次读取时无需预先初始化
- *
- * 信号连接关系：
- *   settingsChanged → MainWindow::onSettingsChanged → 重新创建 LLMProvider
- *   （确保修改 API Key 或模型后，下次请求使用新配置）
+ * 设计要点：
+ * - 每个配置项提供 getter / setter 对，getter 自带默认值
+ * - setter 写入后通过 200ms 防抖批量 sync 并发出分区信号
+ * - 信号分两类：
+ *     providerSettingsChanged → MainWindow 重建 LLMProvider
+ *     uiSettingsChanged       → MainWindow 刷新角色名 / 立绘资源目录等
+ *   连续输入 API Key、改用户名等只会触发一次刷盘 + 一次通知。
  *
  * 配置文件路径：<可执行文件目录>/config/settings.ini
- * 文件格式示例：
- *   [Claude]
- *   api_key=sk-ant-xxxx
- *   base_url=https://api.anthropic.com
- *   model=claude-opus-4-6
- *
- *   [OpenAI]
- *   api_key=sk-xxxx
- *   base_url=https://api.openai.com
- *   model=gpt-4o
- *
- *   [General]
- *   active_provider=claude
- *   system_prompt=You are a helpful assistant.
- *   max_tokens=4096
- *   temperature=0.7
  */
 class AppSettings : public QObject
 {
     Q_OBJECT
 public:
     explicit AppSettings(QObject *parent = nullptr);
+    ~AppSettings();
 
-    // --- Claude API 配置 ---
-    QString claudeApiKey() const;               // API 密钥
+    // --- Claude API ---
+    QString claudeApiKey() const;
     void setClaudeApiKey(const QString &key);
-    QString claudeBaseUrl() const;              // API 基础 URL（可配置代理）
+    QString claudeBaseUrl() const;
     void setClaudeBaseUrl(const QString &url);
-    QString claudeModel() const;                // 妯″瀷鍚嶇О锛屽 "claude-opus-4-6"
+    QString claudeModel() const;
     void setClaudeModel(const QString &model);
-    QString claudeReasoningEffort() const;      // 鎺ㄧ悊寮哄害锛屽 "low"銆?"medium"銆?"high"
+    QString claudeReasoningEffort() const;
     void setClaudeReasoningEffort(const QString &effort);
 
-    // --- OpenAI API 配置 ---
-    QString openaiApiKey() const;               // API 密钥
+    // --- OpenAI API ---
+    QString openaiApiKey() const;
     void setOpenaiApiKey(const QString &key);
-    QString openaiBaseUrl() const;              // API 基础 URL（可配置代理）
+    QString openaiBaseUrl() const;
     void setOpenaiBaseUrl(const QString &url);
-    QString openaiModel() const;                // 妯″瀷鍚嶇О锛屽 "gpt-4o"
+    QString openaiModel() const;
     void setOpenaiModel(const QString &model);
-    QString openaiReasoningEffort() const;      // 鎺ㄧ悊寮哄害锛屽 "low"銆?"medium"銆?"high"
+    QString openaiReasoningEffort() const;
     void setOpenaiReasoningEffort(const QString &effort);
 
+    // --- Gemini API ---
     QString geminiApiKey() const;
     void setGeminiApiKey(const QString &key);
     QString geminiBaseUrl() const;
@@ -70,67 +57,89 @@ public:
     void setGeminiModel(const QString &model);
 
     // --- 通用配置 ---
-    QString activeProvider() const;             // 当前激活的提供商："claude" 或 "openai"
+    QString activeProvider() const;              // "claude" / "openai" / "gemini"
     void setActiveProvider(const QString &provider);
-    QString systemPrompt() const;               // 系统提示词，引导 AI 行为
+    QString systemPrompt() const;                // 系统提示词（每次请求读取，不重建 Provider）
     void setSystemPrompt(const QString &prompt);
-    int maxTokens() const;                      // 最大输出 token 数（默认 4096）
+    int maxTokens() const;
     void setMaxTokens(int tokens);
-    double temperature() const;                 // 温度参数 0.0~2.0（默认 0.7）
+    double temperature() const;
     void setTemperature(double temp);
 
     // --- 立绘配置 ---
-    bool tachieEnabled() const;                 // 是否启用立绘窗口（默认 true）
+    bool tachieEnabled() const;
     void setTachieEnabled(bool enabled);
-    int tachiePositionX() const;                // 立绘窗口 X 坐标（默认 -1 表示自动）
+    int tachiePositionX() const;
     void setTachiePositionX(int x);
-    int tachiePositionY() const;                // 立绘窗口 Y 坐标（默认 -1 表示自动）
+    int tachiePositionY() const;
     void setTachiePositionY(int y);
 
     // --- TTS 配置 ---
-    bool ttsEnabled() const;                    // 是否启用 TTS 语音朗读（默认 false）
+    bool ttsEnabled() const;
     void setTtsEnabled(bool enabled);
-    QString ttsVoice() const;                   // TTS 语音名称（默认 "zh-CN-XiaoxiaoNeural"）
+    QString ttsVoice() const;
     void setTtsVoice(const QString &voice);
 
-    // --- 角色名称配置 ---
-    QString userName() const;                   // 用户显示名（默认 "You"）
+    // --- 角色名 ---
+    QString userName() const;
     void setUserName(const QString &name);
-    QString assistantName() const;              // 助手显示名（默认 "Assistant"）
+    QString assistantName() const;
     void setAssistantName(const QString &name);
 
     // --- Prompt 模板 ---
     QStringList promptTemplates() const;
     void setPromptTemplates(const QStringList &templates);
 
-    // --- 立绘角色 ---
-    QString tachieResourceDir() const;          // 立绘资源目录名
+    // --- 立绘资源目录 ---
+    QString tachieResourceDir() const;
     void setTachieResourceDir(const QString &dir);
 
     // --- 背景图配置 ---
-    int backgroundPaintMode() const;            // 绘制模式：0=Normal, 1=Pixmap, 2=Movie（默认 2）
+    int backgroundPaintMode() const;             // 0=Normal, 1=Pixmap, 2=Movie（默认 2）
     void setBackgroundPaintMode(int mode);
-    QString backgroundPixmapPath() const;       // 静态背景图本地路径（空则用内置资源）
+    QString backgroundPixmapPath() const;
     void setBackgroundPixmapPath(const QString &path);
-    QString backgroundMoviePath() const;        // 动态背景图(GIF)本地路径（空则用内置资源）
+    QString backgroundMoviePath() const;
     void setBackgroundMoviePath(const QString &path);
 
     // --- 数据目录 ---
-    QString dataDir() const;                    // 返回数据根目录，供 SessionManager 使用
+    QString dataDir() const;
 
 signals:
     /**
-     * @brief 任意配置项被修改时发射
+     * @brief Provider 相关配置（API Key / baseUrl / model / 推理强度）变更
      *
-     * MainWindow 连接此信号，收到后调用 createProvider() 重建 API 客户端，
-     * 确保后续请求使用最新的 API Key、模型等配置。
+     * MainWindow 收到后调 createProvider() 重建 LLMProvider。
+     * 通过 200ms 防抖发出：用户在文本框里逐字输入 API Key 时只刷盘并通知一次。
      */
-    void settingsChanged();
+    void providerSettingsChanged();
 
-    /** @brief Prompt 模板列表被修改 */
+    /**
+     * @brief 影响 UI 显示的轻量设置（角色名、立绘资源目录、系统提示词等）变更
+     *
+     * MainWindow 收到后做 UI 刷新（更新气泡角色名、立绘窗口资源目录），
+     * 不会触发 Provider 重建。同样有 200ms 防抖。
+     */
+    void uiSettingsChanged();
+
+    /** @brief Prompt 模板列表被修改（独立信号，由 ChatPage 监听） */
     void promptTemplatesChanged();
 
 private:
+    /**
+     * @brief 调度一次 200ms 后的批量 sync + emit
+     *
+     * 单触发定时器，每次调用都会重置剩余时间——典型防抖语义：用户停下输入后
+     * 200ms 才落盘并通知。析构时若仍在排队会兜底刷一次盘。
+     */
+    void scheduleProviderFlush();
+    void scheduleUiFlush();
+    void flushProvider();
+    void flushUi();
+
     QSettings *m_settings;  // Qt 配置读写对象（INI 格式）
     QString m_dataDir;      // 数据存储根目录（<可执行文件目录>/config/）
+
+    QTimer *m_providerFlushTimer = nullptr;
+    QTimer *m_uiFlushTimer = nullptr;
 };
