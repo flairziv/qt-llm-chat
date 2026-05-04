@@ -14,9 +14,6 @@ public:
 
     void loadSettings();
 
-signals:
-    void settingsChanged();
-
 private:
     void connectAutoSave();
     Ui::SettingOpenAIPage *ui;

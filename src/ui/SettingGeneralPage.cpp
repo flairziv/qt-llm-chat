@@ -70,7 +70,6 @@ void SettingGeneralPage::setupRoleNameSection()
 
     connect(m_userNameEdit, &QLineEdit::textChanged, this, [this](const QString &text) {
         m_settings->setUserName(text);
-        emit settingsChanged();
     });
 
     layout->insertWidget(insertIdx++, userArea);
@@ -92,7 +91,6 @@ void SettingGeneralPage::setupRoleNameSection()
 
     connect(m_assistantNameEdit, &QLineEdit::textChanged, this, [this](const QString &text) {
         m_settings->setAssistantName(text);
-        emit settingsChanged();
     });
 
     layout->insertWidget(insertIdx++, assistantArea);
@@ -346,16 +344,13 @@ void SettingGeneralPage::connectAutoSave()
 {
     connect(ui->plainTextEdit_systemPrompt, &QPlainTextEdit::textChanged, this, [this]() {
         m_settings->setSystemPrompt(ui->plainTextEdit_systemPrompt->toPlainText());
-        emit settingsChanged();
     });
     connect(ui->doubleSpinBox_temperature, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
             this, [this](double val) {
         m_settings->setTemperature(val);
-        emit settingsChanged();
     });
     connect(ui->spinBox_maxTokens, QOverload<int>::of(&QSpinBox::valueChanged),
             this, [this](int val) {
         m_settings->setMaxTokens(val);
-        emit settingsChanged();
     });
 }

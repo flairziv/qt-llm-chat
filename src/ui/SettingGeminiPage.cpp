@@ -43,14 +43,11 @@ void SettingGeminiPage::connectAutoSave()
 {
     connect(ui->lineEdit_apiKey, &QLineEdit::textChanged, this, [this](const QString &text) {
         m_settings->setGeminiApiKey(text);
-        emit settingsChanged();
     });
     connect(ui->lineEdit_baseUrl, &QLineEdit::textChanged, this, [this](const QString &text) {
         m_settings->setGeminiBaseUrl(text);
-        emit settingsChanged();
     });
     connect(ui->comboBox_model, &QComboBox::currentTextChanged, this, [this](const QString &text) {
         m_settings->setGeminiModel(text);
-        emit settingsChanged();
     });
 }

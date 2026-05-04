@@ -37,10 +37,6 @@ public:
     /** @brief 从 AppSettings 加载配置并更新 UI 控件 */
     void loadSettings();
 
-signals:
-    /** @brief 任一设置项被修改时发射，通知 MainWindow 重建 Provider */
-    void settingsChanged();
-
 private:
     /** @brief 将每个输入控件的 textChanged 信号连接到自动保存逻辑 */
     void connectAutoSave();

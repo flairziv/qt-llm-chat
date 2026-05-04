@@ -51,18 +51,14 @@ void SettingOpenAIPage::connectAutoSave()
 {
     connect(ui->lineEdit_apiKey, &QLineEdit::textChanged, this, [this](const QString &text) {
         m_settings->setOpenaiApiKey(text);
-        emit settingsChanged();
     });
     connect(ui->lineEdit_baseUrl, &QLineEdit::textChanged, this, [this](const QString &text) {
         m_settings->setOpenaiBaseUrl(text);
-        emit settingsChanged();
     });
     connect(ui->comboBox_model, &QComboBox::currentTextChanged, this, [this](const QString &text) {
         m_settings->setOpenaiModel(text);
-        emit settingsChanged();
     });
     connect(ui->comboBox_reasoning, &QComboBox::currentTextChanged, this, [this](const QString &text) {
         m_settings->setOpenaiReasoningEffort(text == "default" ? QString() : text);
-        emit settingsChanged();
     });
 }
