@@ -93,6 +93,11 @@ target_link_libraries(LLMChat PRIVATE
     Qt${QT_VERSION_MAJOR}::Multimedia
     ${CMAKE_SOURCE_DIR}/third_party/ElaWidgetTools/lib/ElaWidgetTools.lib
 )
+if(WIN32)
+    # SetCurrentProcessExplicitAppUserModelID（main.cpp 里用，让任务栏固定的快捷
+    # 方式和运行中进程能正确合并到同一个图标）由 shell32.dll 提供。
+    target_link_libraries(LLMChat PRIVATE shell32)
+endif()
 
 # Copy ATRI0.3 tachie resources to config directory after build
 add_custom_command(TARGET LLMChat POST_BUILD
