@@ -47,7 +47,7 @@ public:
 private slots:
     void onNewChat();
     void onDeleteChat(const QString &sessionId);
-    void onRenameChat(const QString &sessionId);
+    void onRenameChat(const QString &sessionId, const QString &newName);
     void onExportSession(const QString &sessionId);
     void onSessionSelected(const QString &sessionId);
     void onSendMessage(const QString &text, const QList<Attachment> &attachments);

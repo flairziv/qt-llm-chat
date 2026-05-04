@@ -19,7 +19,6 @@
 #include <QCoreApplication>
 #include <QFile>
 #include <QFileDialog>
-#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QShortcut>
@@ -499,27 +498,16 @@ void MainWindow::onDeleteChat(const QString &sessionId)
     }
 }
 
-/** @brief Rename a saved chat session from the session list context menu. */
-void MainWindow::onRenameChat(const QString &sessionId)
+/** @brief 重命名指定会话，更新标题并持久化（rename 文本输入由 SessionListWidget 完成） */
+void MainWindow::onRenameChat(const QString &sessionId, const QString &newName)
 {
     if (m_isStreaming) return;
 
     ChatSession *session = m_sessionManager->session(sessionId);
     if (!session) return;
 
-    bool ok = false;
-    const QString title = QInputDialog::getText(
-        this,
-        "Rename Chat",
-        "Title:",
-        QLineEdit::Normal,
-        session->title(),
-        &ok
-    ).trimmed();
-
-    if (!ok || title.isEmpty() || title == session->title()) {
-        return;
-    }
+    const QString title = newName.trimmed();
+    if (title.isEmpty() || title == session->title()) return;
 
     session->setTitle(title);
     m_sessionManager->saveSession(session);

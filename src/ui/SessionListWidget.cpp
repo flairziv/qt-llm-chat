@@ -1,6 +1,63 @@
 #include "SessionListWidget.h"
 #include "core/ChatSession.h"
+
+#include <QLabel>
+#include <QLineEdit>
 #include <QMenu>
+#include <QVBoxLayout>
+
+#include "ElaContentDialog.h"
+
+namespace {
+
+struct PromptResult {
+    bool accepted = false;
+    QString text;
+};
+
+/**
+ * @brief 主题一致的文本输入对话框 —— 替代 QInputDialog::getText
+ *
+ * 原生 QInputDialog 的标题栏使用 OS 样式，跟 ElaTheme 不协调；
+ * 用 ElaContentDialog 包一个 QLineEdit，回车确认 / Esc 取消。
+ */
+PromptResult promptForText(QWidget *parent, const QString &title,
+                           const QString &labelText, const QString &initial)
+{
+    ElaContentDialog dialog(parent);
+    dialog.setWindowTitle(title);
+
+    QWidget *content = new QWidget;
+    QVBoxLayout *layout = new QVBoxLayout(content);
+    layout->setContentsMargins(20, 20, 20, 8);
+    layout->setSpacing(8);
+
+    QLabel *label = new QLabel(labelText, content);
+    QLineEdit *edit = new QLineEdit(initial, content);
+    edit->selectAll();
+    edit->setFocus();
+
+    layout->addWidget(label);
+    layout->addWidget(edit);
+
+    dialog.setCentralWidget(content);
+    dialog.setLeftButtonText("Cancel");
+    dialog.setRightButtonText("OK");
+
+    bool accepted = false;
+    QObject::connect(&dialog, &ElaContentDialog::rightButtonClicked,
+                     [&]() { accepted = true; });
+    // 回车直接确认（ElaContentDialog 自己会处理 Esc 关闭）
+    QObject::connect(edit, &QLineEdit::returnPressed, [&]() {
+        accepted = true;
+        dialog.close();
+    });
+
+    dialog.exec();
+    return { accepted, edit->text().trimmed() };
+}
+
+} // namespace
 
 // ============================================================================
 // 构造函数
@@ -154,7 +211,12 @@ void SessionListWidget::onContextMenu(const QPoint &pos)
 
     QAction *selected = menu.exec(mapToGlobal(pos));  // 阻塞式弹出菜单
     if (selected == renameAction) {
-        emit sessionRenameRequested(id);
+        const auto result = promptForText(this, "Rename Session",
+                                          "New name:", item->text());
+        if (result.accepted && !result.text.isEmpty() && result.text != item->text()) {
+            item->setText(result.text);
+            emit sessionRenameRequested(id, result.text);
+        }
     } else if (selected == exportAction) {
         emit sessionExportRequested(id);
     } else if (selected == deleteAction) {
