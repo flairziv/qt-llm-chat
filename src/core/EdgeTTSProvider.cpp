@@ -2,6 +2,7 @@
 
 #include <QCryptographicHash>
 #include <QDateTime>
+#include <QLocale>
 #include <QNetworkRequest>
 #include <QRandomGenerator>
 #include <QUuid>
@@ -56,11 +57,15 @@ QString EdgeTTSProvider::xmlEscape(const QString &s)
 /**
  * 生成 Sec-MS-GEC 令牌（DRM 验证）
  * 算法来自 https://github.com/rany2/edge-tts/blob/master/src/edge_tts/drm.py
+ *
+ * 关键点：5 分钟边界。如果客户端时钟与微软服务端偏离到落进不同的 5 分钟窗口，
+ * 哈希就对不上、连接被拒。通过 m_clockSkewSec 把"用来算令牌的时间"前后挪几个
+ * 5 分钟窗口，直到 MS 能接受。connectWs / onDisconnected 配合做窗口扫描。
  */
 QString EdgeTTSProvider::generateSecMsGec()
 {
-    // 当前 Unix 时间戳（秒）
-    qint64 ticks = QDateTime::currentSecsSinceEpoch();
+    // 当前 Unix 时间戳（秒）+ 时钟偏移（默认 0）
+    qint64 ticks = QDateTime::currentSecsSinceEpoch() + m_clockSkewSec;
 
     // 转换为 Windows 文件时间纪元
     ticks += WIN_EPOCH;
@@ -89,6 +94,21 @@ QString EdgeTTSProvider::generateMuid()
     for (int i = 0; i < 16; ++i)
         bytes[i] = static_cast<char>(rng->bounded(256));
     return QString(bytes.toHex()).toUpper();
+}
+
+/**
+ * @brief 生成 X-Timestamp 头要的 JS 风格日期字符串。
+ *
+ * 格式："Sun May 03 2026 08:30:45 GMT+0000 (Coordinated Universal Time)"。
+ * 微软 Edge 的 readaloud 服务这里硬性检查格式（虽然时区文本是冗余的）；
+ * 用 QLocale::c() 强制英文月/日缩写，避免本地化语言造成解析失败。
+ */
+QString EdgeTTSProvider::dateToString()
+{
+    return QLocale::c().toString(
+        QDateTime::currentDateTimeUtc(),
+        QStringLiteral("ddd MMM dd yyyy HH:mm:ss"))
+        + QStringLiteral(" GMT+0000 (Coordinated Universal Time)");
 }
 
 // ---- 连接管理 ----
@@ -212,6 +232,8 @@ void EdgeTTSProvider::abort()
     m_synthesizing = false;
     m_ready = false;
     m_aborted = true;   // 阻止 onDisconnected 自动重连
+    m_consecutiveFailures = 0;  // 下一次 synthesize() / preConnect() 重新计数；
+                                // 不动 m_clockSkewSec，沿用已找到的有效偏移
     m_pendingText.clear();
     m_pendingVoice.clear();
     m_audioBuffer.clear();
@@ -234,6 +256,8 @@ void EdgeTTSProvider::abort()
 void EdgeTTSProvider::onConnected()
 {
     // qDebug() << "[TTS] WebSocket connected, sending config...";
+    // 握手成功 → 当前的 m_clockSkewSec / Sec-MS-GEC 是有效的，清零失败计数器
+    m_consecutiveFailures = 0;
     sendConfig();
 
     if (!m_pendingText.isEmpty()) {
@@ -255,33 +279,44 @@ void EdgeTTSProvider::onConnected()
 /** @brief 发送音频配置：指定输出格式为 24kHz 48kbps 单声道 MP3。 */
 void EdgeTTSProvider::sendConfig()
 {
-    QString msg =
+    // X-Timestamp 头是 MS readaloud 必填项；2024 下半年起没有该头服务端会
+    // 接受 WebSocket upgrade 但在收到 speech.config / ssml 后静默关闭连接。
+    QString msg = QString(
+        "X-Timestamp:%1\r\n"
         "Content-Type:application/json; charset=utf-8\r\n"
         "Path:speech.config\r\n\r\n"
         "{\"context\":{\"synthesis\":{\"audio\":{"
-        "\"metadataOptions\":{\"sentenceBoundaryEnabled\":\"false\","
+        "\"metadataoptions\":{\"sentenceBoundaryEnabled\":\"false\","
         "\"wordBoundaryEnabled\":\"false\"},"
-        "\"outputFormat\":\"audio-24khz-48kbitrate-mono-mp3\"}}}}";
+        "\"outputFormat\":\"audio-24khz-48kbitrate-mono-mp3\"}}}}\r\n")
+        .arg(dateToString());
     m_ws->sendTextMessage(msg);
 }
 
-/** @brief 构造 SSML 文档并发送。从 voiceName 中提取语言代码（如 zh-CN）。 */
+/** @brief 构造 SSML 文档并发送。 */
 void EdgeTTSProvider::sendSSML(const QString &text, const QString &voiceName)
 {
-    QStringList parts = voiceName.split('-');
-    QString lang = (parts.size() >= 2) ? (parts[0] + "-" + parts[1]) : "zh-CN";
+    // 上游 edge-tts 把 xml:lang 硬编码为 en-US（即使是中文 voice），同时把文本
+    // 包在 <prosody> 里（pitch/rate/volume 都是 +0 的"无变化"值）。这里完全
+    // 照搬避免任何 schema 偏差导致 MS 拒绝。
+    //
+    // 注意 prosody 的 rate / volume 值含 '%' —— 不能走 QString::arg() 拼接，
+    // 否则 '%' 会被误认成位置占位符。改用字符串连接。
+    const QString ssml =
+        QStringLiteral("<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>")
+        + QStringLiteral("<voice name='") + voiceName + QStringLiteral("'>")
+        + QStringLiteral("<prosody pitch='+0Hz' rate='+0%' volume='+0%'>")
+        + xmlEscape(text)
+        + QStringLiteral("</prosody></voice></speak>");
 
-    QString ssml = QString(
-        "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='%1'>"
-        "<voice name='%2'>%3</voice>"
-        "</speak>")
-        .arg(lang, voiceName, xmlEscape(text));
-
-    QString msg = QString(
-        "X-RequestId:%1\r\n"
-        "Content-Type:application/ssml+xml\r\n"
-        "Path:ssml\r\n\r\n%2")
-        .arg(m_requestId, ssml);
+    // 注意：X-Timestamp 末尾的 'Z' 是 MS 的 bug（上游注释 "This is not a mistake,
+    // Microsoft Edge bug." 强调要保留）。不加这个 'Z' 服务端会拒掉 SSML。
+    const QString msg =
+        QStringLiteral("X-RequestId:") + m_requestId + QStringLiteral("\r\n")
+        + QStringLiteral("Content-Type:application/ssml+xml\r\n")
+        + QStringLiteral("X-Timestamp:") + dateToString() + QStringLiteral("Z\r\n")
+        + QStringLiteral("Path:ssml\r\n\r\n")
+        + ssml;
 
     m_ws->sendTextMessage(msg);
 }
@@ -289,7 +324,7 @@ void EdgeTTSProvider::sendSSML(const QString &text, const QString &voiceName)
 /**
  * @brief 接收二进制音频数据并立即转发。
  *
- * 消息格式：前 2 字节为大端序头部长度，之后是头部内容，再之后是实际 PCM 音频数据。
+ * 消息格式：前 2 字节为大端序头部长度，之后是头部内容,再之后是实际 PCM 音频数据。
  * 跳过头部后，通过 audioChunkReceived 信号将 PCM 数据直接推送给调用方，
  * 调用方可立即写入 QAudioOutput 实现流式播放，无需等待合成完成。
  */
@@ -311,12 +346,6 @@ void EdgeTTSProvider::onBinaryMessageReceived(const QByteArray &message)
     }
 }
 
-/**
- * @brief 接收文本消息。当检测到 "Path:turn.end" 时，表示合成完成。
- *
- * 保持 WebSocket 连接（不关闭），标记 m_ready = true，
- * 下次 synthesize() 可直接复用这个连接。
- */
 /**
  * @brief 接收文本消息。当检测到 "Path:turn.end" 时，表示合成完成。
  *
@@ -362,7 +391,7 @@ void EdgeTTSProvider::onTextMessageReceived(const QString &message)
     emit synthesisFinished(filePath);
 }
 
-/** @brief 连接断开回调。若合成中则报错，否则自动重连保持就绪。 */
+/** @brief 连接断开回调。若合成中则报错，否则按退避策略尝试重连。 */
 void EdgeTTSProvider::onDisconnected()
 {
     // qDebug() << "[TTS] WebSocket disconnected, was synthesizing:" << m_synthesizing
@@ -378,15 +407,41 @@ void EdgeTTSProvider::onDisconnected()
     if (m_synthesizing) {
         m_synthesizing = false;
         emit errorOccurred("WebSocket 连接意外断开");
-    } else if (!m_aborted) {
-        // 空闲断开（服务端超时）且未被显式中止 → 自动重连保持就绪
-        QTimer::singleShot(1000, this, [this]() {
-            if (!m_ws && !m_synthesizing && !m_aborted) {
-                qDebug() << "[TTS] Auto-reconnecting after idle disconnect";
-                connectWs();
-            }
-        });
+        return;
     }
+    if (m_aborted) {
+        return;  // 调用方主动中止，不要再启动重连
+    }
+
+    // 自动重连策略：最多 2 次尝试
+    //   attempt 1: 把 m_clockSkewSec 挪到 -300（防客户端时钟刚跨过 5 分钟边界
+    //              而服务端还没跨）
+    //   attempt 2: 把 m_clockSkewSec 复位到 0（万一刚才 -300 是不必要的）
+    //   超出后放弃 —— 大概率是网络 / 区域级别的问题，再多重试只会让 MS 把 IP
+    //   暂时拉黑，反而让 synthesize() 也连不上。
+    ++m_consecutiveFailures;
+    if (m_consecutiveFailures > 2) {
+        qWarning() << "[TTS] Auto-reconnect 放弃。如果一直 RemoteHostClosed / 403，"
+                      "通常是 speech.platform.bing.com 在你这边走不通："
+                      "需要走代理 / VPN，或者关掉 TTS。"
+                   << "consecutive failures:" << (m_consecutiveFailures - 1);
+        m_consecutiveFailures = 0;
+        m_clockSkewSec = 0;
+        return;
+    }
+
+    // 第一次失败试 skew = -300（上一个 5 分钟窗口），第二次失败回到 skew = 0
+    m_clockSkewSec = (m_consecutiveFailures == 1) ? -300 : 0;
+
+    const int backoffMs = 1000 * (1 << (m_consecutiveFailures - 1));   // 1s, 2s
+    qWarning() << "[TTS] Reconnect attempt" << m_consecutiveFailures
+               << "of 2 after" << backoffMs << "ms (skew now"
+               << m_clockSkewSec << "s)";
+    QTimer::singleShot(backoffMs, this, [this]() {
+        if (!m_ws && !m_synthesizing && !m_aborted) {
+            connectWs();
+        }
+    });
 }
 
 /** @brief WebSocket 错误回调，提取错误描述并通过 errorOccurred 信号通知。 */
@@ -394,6 +449,19 @@ void EdgeTTSProvider::onWsError(QAbstractSocket::SocketError error)
 {
     QString errMsg = m_ws ? m_ws->errorString() : "未知错误";
     qWarning() << "[TTS] WebSocket error:" << error << errMsg;
+
+    // HTTP 403 = MS 明确拒绝授权（IP 被临时拉黑 / 区域屏蔽 / token 反复错位都会触发）。
+    // 这种情况再退避重连只会继续吃配额，所以直接放弃自动重连：把 m_aborted 置 true 让
+    // onDisconnected 走 fast-return 分支，等用户下次 synthesize() 主动尝试时再说。
+    if (errMsg.contains("403")) {
+        qWarning() << "[TTS] HTTP 403 from speech.platform.bing.com — "
+                      "停止自动重连。可能原因：网络 / 区域屏蔽，或刚才连续重连被 MS 临时限流。"
+                      "等几分钟或换网络再试，或在 Settings → General 关掉 TTS。";
+        m_aborted = true;
+        m_consecutiveFailures = 0;
+        m_clockSkewSec = 0;
+    }
+
     m_synthesizing = false;
     m_ready = false;
     emit errorOccurred("WebSocket 错误: " + errMsg);

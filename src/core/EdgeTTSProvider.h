@@ -70,10 +70,11 @@ private:
     void sendConfig();                                      // 发送音频输出格式等配置
     void sendSSML(const QString &text, const QString &voiceName); // 发送 SSML 合成请求
 
+    QString generateSecMsGec();          // 用 m_clockSkewSec 修正后的时间生成 DRM 令牌
     static QString generateUUID();       // 生成无连字符的 UUID，用作 ConnectionId / RequestId
     static QString xmlEscape(const QString &s); // XML 特殊字符转义
-    static QString generateSecMsGec();   // 生成 Sec-MS-GEC DRM 验证令牌
     static QString generateMuid();       // 生成随机 MUID Cookie 值
+    static QString dateToString();       // JS-style date 字符串，用于 X-Timestamp 头
 
     QWebSocket *m_ws = nullptr;          // WebSocket 连接实例
     QString     m_requestId;             // 当前合成请求的唯一标识
@@ -82,5 +83,12 @@ private:
     QByteArray  m_audioBuffer;           // 累积接收的 MP3 音频数据
     bool        m_synthesizing = false;  // 是否正在进行合成
     bool        m_ready = false;         // 连接已建立且 config 已发送，可直接发 SSML
-    bool        m_aborted = false;       // 是否被显式中止（阻止自动重连）
+    bool        m_aborted = false;       // 是否被显式中止（阻止自动重连)
+
+    // ---- 失败重连：避免在 RemoteHostClosed / 403 上死循环 ----
+    // 自动重连最多 2 次：先把 m_clockSkewSec 挪 -300（防客户端时钟刚跨过 5 分钟
+    // 边界），再回到 0。再失败就停止——继续重连只会让 MS 把 IP 拉黑。一次握手
+    // 成功后 m_consecutiveFailures 清零。HTTP 403 直接放弃（onWsError 里处理）。
+    qint64 m_clockSkewSec = 0;
+    int m_consecutiveFailures = 0;
 };
