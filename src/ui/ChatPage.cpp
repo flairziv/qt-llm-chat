@@ -165,7 +165,17 @@ void ChatPage::setupUI()
         emit providerSwitched(m_providerCombo->currentData().toString());
     });
     connect(m_scrollArea->verticalScrollBar(), &QScrollBar::rangeChanged, this, [this]() {
-        QTimer::singleShot(10, this, &ChatPage::scrollToBottom);
+        // 内容高度变化（新气泡 / 流式追加）后，仅在用户没向上滚浏览历史时
+        // 才跟随到底部
+        if (m_autoScrollEnabled) {
+            QTimer::singleShot(10, this, &ChatPage::scrollToBottom);
+        }
+    });
+    connect(m_scrollArea->verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int value) {
+        // 通过当前位置 vs 最大值推断"是否还盯着底部"：阈值 4px 容忍滚动条
+        // 把 setValue(maximum) 算为"在底部"以及小幅惯性滚动。
+        QScrollBar *bar = m_scrollArea->verticalScrollBar();
+        m_autoScrollEnabled = (value >= bar->maximum() - 4);
     });
 }
 
@@ -363,6 +373,8 @@ void ChatPage::clearMessages()
         bubble->deleteLater();
     }
     m_bubbles.clear();
+    // 切换会话或清空时重置跟随状态，新会话默认从底部开始
+    m_autoScrollEnabled = true;
 }
 
 void ChatPage::loadMessages(const QList<ChatMessage> &messages)

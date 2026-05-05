@@ -93,6 +93,10 @@ private:
     QList<MessageBubble *> m_bubbles;
     QList<Attachment> m_pendingAttachments;
 
+    // 流式期间是否自动跟随最新消息滚到底部。用户手动向上滚浏览历史时
+    // 自动关闭；滚回底部时自动恢复。避免长回复持续把视野拉走。
+    bool m_autoScrollEnabled = true;
+
     AppSettings *m_settings = nullptr;
     QHBoxLayout *m_promptLayout = nullptr;
 
