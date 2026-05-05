@@ -5,11 +5,15 @@
 #include <QVBoxLayout>
 #include <QShowEvent>
 #include <ElaText.h>
+#include <ElaTheme.h>
 
 AnalyticsPage::AnalyticsPage(SessionManager *manager, QWidget *parent)
     : QWidget(parent), m_manager(manager)
 {
     setupUI();
+    // 主题切换后 QLabel RichText 不会自动按新调色板重绘已设置的内容，
+    // 重新跑一次 refresh() 让 setText 在新 palette 下重新生成文档。
+    connect(eTheme, &ElaTheme::themeModeChanged, this, &AnalyticsPage::refresh);
 }
 
 void AnalyticsPage::setupUI()

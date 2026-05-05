@@ -49,6 +49,7 @@ private:
     void setupUI();
     void loadImage(const QString &filePath);
     void updatePreview();
+    void applyThemeStyles();    // 根据当前 ElaTheme 给 m_asciiPreview 套主题样式
 
     // 控件
     QLabel *m_imagePreview;             // 原图缩略图

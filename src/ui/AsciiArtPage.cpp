@@ -21,6 +21,7 @@
 #include <ElaComboBox.h>
 #include <ElaToggleSwitch.h>
 #include <ElaText.h>
+#include <ElaTheme.h>
 
 // ASCII 字符集（从暗到亮排列）
 static const char *SIMPLE_CHARSET  = " .:-=+*#%@";
@@ -35,6 +36,9 @@ AsciiArtPage::AsciiArtPage(QWidget *parent)
 {
     setupUI();
     setAcceptDrops(true);
+    // 主题切换时重新刷一次 ASCII 预览的底色 / 字色（dark 黑底荧光绿，
+    // light 浅灰底深绿，否则黑底在浅色主题下视觉割裂）
+    connect(eTheme, &ElaTheme::themeModeChanged, this, &AsciiArtPage::applyThemeStyles);
 }
 
 // ============================================================================
@@ -80,10 +84,7 @@ void AsciiArtPage::setupUI()
     m_asciiPreview->setFrameShape(QFrame::NoFrame);
     m_asciiPreview->setObjectName("asciiTextPreview");
     m_asciiPreview->setLineWrapMode(QTextBrowser::NoWrap);
-    m_asciiPreview->setStyleSheet(
-        "QTextBrowser { background: rgba(0,0,0,0.85); color: #00ff00; "
-        "font-family: Consolas, 'Courier New', monospace; font-size: 8px; "
-        "border-radius: 8px; padding: 8px; }");
+    applyThemeStyles();
 
     splitter->addWidget(leftPanel);
     splitter->addWidget(m_asciiPreview);
@@ -288,6 +289,26 @@ void AsciiArtPage::setupUI()
 // ============================================================================
 // 图片加载
 // ============================================================================
+
+/**
+ * @brief 给 ASCII 预览区套主题相关样式
+ *
+ * dark 主题用经典终端风（黑底荧光绿）；light 主题黑底太刺眼，改成
+ * 浅灰底深绿，跟周围 ElaWindow 的浅色面板协调。
+ */
+void AsciiArtPage::applyThemeStyles()
+{
+    if (!m_asciiPreview) return;
+    const bool isDark = (eTheme->getThemeMode() == ElaThemeType::Dark);
+    const QString bg = isDark ? QStringLiteral("rgba(0,0,0,0.85)")
+                              : QStringLiteral("rgba(220,220,220,0.85)");
+    const QString fg = isDark ? QStringLiteral("#00ff00")
+                              : QStringLiteral("#1a6f1a");
+    m_asciiPreview->setStyleSheet(
+        QStringLiteral("QTextBrowser { background: %1; color: %2; "
+                       "font-family: Consolas, 'Courier New', monospace; font-size: 8px; "
+                       "border-radius: 8px; padding: 8px; }").arg(bg, fg));
+}
 
 /** @brief 加载图片并刷新预览 */
 void AsciiArtPage::loadImage(const QString &filePath)
