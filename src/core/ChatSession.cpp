@@ -272,6 +272,9 @@ QJsonObject ChatSession::toJson() const
         if (msg.favorite) {
             m["favorite"] = true;
         }
+        if (!msg.reasoning.isEmpty()) {
+            m["reasoning"] = msg.reasoning;
+        }
         if (!msg.attachments.isEmpty()) {
             QJsonArray attArray;
             for (const auto &att : msg.attachments) {
@@ -319,6 +322,7 @@ ChatSession* ChatSession::fromJson(const QJsonObject &obj, QObject *parent)
             msg.timestamp = QDateTime::fromString(m["timestamp"].toString(), Qt::ISODate);
         }
         msg.favorite = m["favorite"].toBool(false);
+        msg.reasoning = m["reasoning"].toString();
         if (m.contains("attachments")) {
             QJsonArray attArray = m["attachments"].toArray();
             for (const auto &attVal : attArray) {

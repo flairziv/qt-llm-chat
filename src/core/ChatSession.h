@@ -36,6 +36,8 @@ struct Attachment {
  * attachments - 附件列表（图片、文件等）
  * timestamp   - 消息时间戳
  * favorite    - 是否收藏
+ * reasoning   - 思考链（Claude thinking_delta / OpenAI delta.reasoning_content）；
+ *               与 content 分开存储和持久化，便于 UI 折叠显示
  */
 struct ChatMessage {
     QString role;
@@ -43,6 +45,7 @@ struct ChatMessage {
     QList<Attachment> attachments;
     QDateTime timestamp;
     bool favorite = false;
+    QString reasoning;
 };
 
 /**
