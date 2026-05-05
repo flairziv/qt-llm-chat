@@ -59,6 +59,7 @@ private slots:
     void onUiSettingsChanged();
     void onMessageFavoriteToggle(int index);   // 收藏/取消收藏单条消息
     void onMessageDeleteFromHere(int index);   // 删除该消息及其后的全部消息
+    void flushPendingBubbleText();              // 把累积的 token 批量喂给气泡（80ms 节流）
 
 private:
     void setupPages();
@@ -67,6 +68,7 @@ private:
     void loadSessions();
     void setupTachie();                         // 初始化立绘窗口
     QString buildAugmentedSystemPrompt() const; // 构建包含情绪标签指令的 system prompt
+    void queuePendingBubbleText(const QString &text); // 把 token 排入流式 flush 队列
 
     AppSettings *m_settings;
     SessionManager *m_sessionManager;
@@ -88,6 +90,11 @@ private:
     bool m_tachieEnabled = false;               // 是否启用立绘联动
     bool m_emotionTagParsed = false;            // 当前回复的情绪标签是否已解析
     QString m_tokenBuffer;                      // 缓冲前几个 token 用于提取情绪标签
+
+    // 流式 flush 节流：每 token 直接 setText 在长回复里 QLabel relayout 开销很大；
+    // 累积到 m_pendingBubbleText，由 80ms single-shot 定时器批量刷新一次。
+    class QTimer *m_streamFlushTimer = nullptr;
+    QString m_pendingBubbleText;
 
     // TTS 相关
     EdgeTTSProvider *m_ttsProvider = nullptr;    // Edge TTS 语音合成器

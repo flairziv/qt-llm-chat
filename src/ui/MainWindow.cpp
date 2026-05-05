@@ -94,6 +94,15 @@ MainWindow::MainWindow(AppSettings *settings, QWidget *parent)
         m_tachieWindow->changeExpression(available[idx]);
     });
 
+    // 流式 flush 节流计时器：80ms 单次触发；onTokenReceived 把 token 累积到
+    // m_pendingBubbleText，等下一次触发时一次性喂给气泡。33ms (~30fps) 在长
+    // 回复里 QLabel relayout 跑满，80ms (~12fps) 视觉无差别但 layout 工作量
+    // 减约 60%。
+    m_streamFlushTimer = new QTimer(this);
+    m_streamFlushTimer->setSingleShot(true);
+    m_streamFlushTimer->setInterval(80);
+    connect(m_streamFlushTimer, &QTimer::timeout, this, &MainWindow::flushPendingBubbleText);
+
     // TTS 错误日志
     connect(m_ttsProvider, &EdgeTTSProvider::errorOccurred,
             this, [](const QString &err) {
@@ -296,6 +305,9 @@ void MainWindow::createProvider()
         m_provider->deleteLater();
         m_provider = nullptr;
     }
+    // 切换 Provider 时丢掉未 flush 的 token（属于已废弃的旧请求）
+    if (m_streamFlushTimer) m_streamFlushTimer->stop();
+    m_pendingBubbleText.clear();
 
     // 读取当前选择并持久化
     QString providerName = m_chatPage->currentProviderData();
@@ -648,6 +660,8 @@ void MainWindow::onSendMessage(const QString &text, const QList<Attachment> &att
     // 重置情绪标签解析状态（每轮回复重新解析）
     m_emotionTagParsed = false;
     m_tokenBuffer.clear();
+    m_pendingBubbleText.clear();
+    if (m_streamFlushTimer) m_streamFlushTimer->stop();
 
     // 重置 TTS 状态（中止上一轮朗读，预连接为新一轮做准备）
     m_ttsProvider->abort();
@@ -678,7 +692,7 @@ void MainWindow::onTokenReceived(const QString &token)
 {
     // 立绘关闭或标签已解析 → 直接转发给 ChatPage
     if (!m_tachieEnabled || !m_tachieWindow || m_emotionTagParsed) {
-        m_chatPage->appendToLastBubble(token);
+        queuePendingBubbleText(token);
         return;
     }
 
@@ -702,18 +716,41 @@ void MainWindow::onTokenReceived(const QString &token)
             // 标签之后的文本转发给气泡
             QString remaining = m_tokenBuffer.mid(match.capturedEnd());
             if (!remaining.isEmpty()) {
-                m_chatPage->appendToLastBubble(remaining);
+                queuePendingBubbleText(remaining);
             }
         } else {
             // 有 ']' 但不匹配标签格式 → 整个缓冲作为普通文本转发
-            m_chatPage->appendToLastBubble(m_tokenBuffer);
+            queuePendingBubbleText(m_tokenBuffer);
         }
     } else if (m_tokenBuffer.length() > 50) {
         // 缓冲超过 50 字符仍无 ']' → 无标签，整体转发
         m_emotionTagParsed = true;
-        m_chatPage->appendToLastBubble(m_tokenBuffer);
+        queuePendingBubbleText(m_tokenBuffer);
     }
     // 否则继续缓冲，等待更多 token
+}
+
+/**
+ * @brief 把 token 排入流式 flush 队列；80ms 后由 m_streamFlushTimer 一次性刷新
+ *
+ * 长回复里逐 token 调 QLabel::setText 会让 layout 跑满；累积起来分批 flush
+ * 视觉上无差别但 CPU 友好得多。
+ */
+void MainWindow::queuePendingBubbleText(const QString &text)
+{
+    if (text.isEmpty()) return;
+    m_pendingBubbleText += text;
+    if (m_streamFlushTimer && !m_streamFlushTimer->isActive()) {
+        m_streamFlushTimer->start();
+    }
+}
+
+/** @brief 流式 flush 计时器到期，把累积的 token 一次性喂给气泡 */
+void MainWindow::flushPendingBubbleText()
+{
+    if (m_pendingBubbleText.isEmpty()) return;
+    m_chatPage->appendToLastBubble(m_pendingBubbleText);
+    m_pendingBubbleText.clear();
 }
 
 /**
@@ -728,6 +765,11 @@ void MainWindow::onResponseFinished(const QString &fullResponse)
     m_isStreaming = false;
     m_chatPage->setInputEnabled(true);
     m_chatPage->setStatusText("");
+
+    // 把 flush 队列里残留的 token 立刻喂掉，避免被随后的 replaceLastBubbleContent
+    // 覆盖（仅在立绘启用时会替换内容；但停定时器是任何情况下都该做的清理）
+    if (m_streamFlushTimer) m_streamFlushTimer->stop();
+    flushPendingBubbleText();
 
     // 从完整回复中剥离开头的 [情绪名] 标签
     QString cleanResponse = fullResponse;
@@ -764,6 +806,10 @@ void MainWindow::onProviderError(const QString &error)
     m_isStreaming = false;
     m_chatPage->setInputEnabled(true);
     m_chatPage->setStatusText("Error: " + error);
+
+    // 出错前已收到的 token 先落到气泡里，让用户看到 partial reply
+    if (m_streamFlushTimer) m_streamFlushTimer->stop();
+    flushPendingBubbleText();
 }
 
 // ============================================================================
