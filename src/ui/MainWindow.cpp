@@ -308,6 +308,7 @@ void MainWindow::createProvider()
     // 切换 Provider 时丢掉未 flush 的 token（属于已废弃的旧请求）
     if (m_streamFlushTimer) m_streamFlushTimer->stop();
     m_pendingBubbleText.clear();
+    m_reasoningBuffer.clear();
 
     // 读取当前选择并持久化
     QString providerName = m_chatPage->currentProviderData();
@@ -346,6 +347,8 @@ void MainWindow::createProvider()
     connect(m_provider, &LLMProvider::tokenReceived, this, &MainWindow::onTokenReceived);
     connect(m_provider, &LLMProvider::responseFinished, this, &MainWindow::onResponseFinished);
     connect(m_provider, &LLMProvider::errorOccurred, this, &MainWindow::onProviderError);
+    connect(m_provider, &LLMProvider::reasoningTokenReceived,
+            this, &MainWindow::onReasoningTokenReceived);
 }
 
 /**
@@ -662,6 +665,7 @@ void MainWindow::onSendMessage(const QString &text, const QList<Attachment> &att
     m_tokenBuffer.clear();
     m_pendingBubbleText.clear();
     if (m_streamFlushTimer) m_streamFlushTimer->stop();
+    m_reasoningBuffer.clear();
 
     // 重置 TTS 状态（中止上一轮朗读，预连接为新一轮做准备）
     m_ttsProvider->abort();
@@ -754,6 +758,17 @@ void MainWindow::flushPendingBubbleText()
 }
 
 /**
+ * @brief 收到 reasoning（思考链）增量，累积到 m_reasoningBuffer
+ *
+ * Reasoning 不写入气泡正文（避免污染朗读 / 显示），
+ * 仅在 onResponseFinished 时随 ChatMessage 一起持久化。
+ */
+void MainWindow::onReasoningTokenReceived(const QString &token)
+{
+    m_reasoningBuffer += token;
+}
+
+/**
  * @brief 流式响应完成
  *
  * 恢复输入状态，从完整回复中剥离情绪标签 [情绪名]，
@@ -790,6 +805,7 @@ void MainWindow::onResponseFinished(const QString &fullResponse)
         ChatMessage assistantMsg;
         assistantMsg.role = "assistant";
         assistantMsg.content = cleanResponse;
+        assistantMsg.reasoning = m_reasoningBuffer;
         session->addMessage(assistantMsg);
         m_sessionManager->saveSession(session);
     }

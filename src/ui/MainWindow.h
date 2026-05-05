@@ -60,6 +60,7 @@ private slots:
     void onMessageFavoriteToggle(int index);   // 收藏/取消收藏单条消息
     void onMessageDeleteFromHere(int index);   // 删除该消息及其后的全部消息
     void flushPendingBubbleText();              // 把累积的 token 批量喂给气泡（80ms 节流）
+    void onReasoningTokenReceived(const QString &token); // 收到 reasoning（思考链）增量
 
 private:
     void setupPages();
@@ -95,6 +96,10 @@ private:
     // 累积到 m_pendingBubbleText，由 80ms single-shot 定时器批量刷新一次。
     class QTimer *m_streamFlushTimer = nullptr;
     QString m_pendingBubbleText;
+
+    // Reasoning（思考链）缓冲：reasoningTokenReceived 流入，onResponseFinished
+    // 时写入 ChatMessage::reasoning 一并持久化。本轮回复内累积，新一轮重置。
+    QString m_reasoningBuffer;
 
     // TTS 相关
     EdgeTTSProvider *m_ttsProvider = nullptr;    // Edge TTS 语音合成器
