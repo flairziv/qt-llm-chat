@@ -78,11 +78,32 @@ add_executable(LLMChat WIN32
 # 含中文注释的 UTF-8 文件会被误读导致编译错误。
 # /utf-8 同时设置源文件编码和执行字符集为 UTF-8。
 if(MSVC)
-    target_compile_options(LLMChat PRIVATE /utf-8)
+    # 移除 CMake 默认追加的 /W3，避免我们再加 /W4 时报 D9025 "正在重写 /W3"。
+    string(REGEX REPLACE "/W[0-4]" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    string(REGEX REPLACE "/W[0-4]" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+
+    target_compile_options(LLMChat PRIVATE
+        /utf-8
+        /W4                          # 高警告等级（默认 /W3）
+        # 抑制低价值警告（Qt / 模板代码大量触发但不反映实际问题）
+        /wd4100                      # 'identifier': unreferenced formal parameter
+        /wd4127                      # conditional expression is constant（QString 等模板内部）
+        /wd4189                      # local variable is initialized but not referenced
+        /wd4505                      # unreferenced local function has been removed
+        /wd4819                      # 源文件含当前代码页无法表示的字符（中文注释）
+        # 把 <angle-bracket> 头视为外部（system header），不对其报警告。
+        # 需要 VS 2019 16.10+ 支持；老版本会报未知选项但通常仍能编译。
+        /external:anglebrackets
+        /external:W0
+    )
 endif()
 
 target_include_directories(LLMChat PRIVATE
     ${CMAKE_SOURCE_DIR}/src
+)
+# 第三方头放到 SYSTEM include，配合 /external:W0 完全屏蔽其内部告警，
+# 让 /W4 只对项目自身代码生效。
+target_include_directories(LLMChat SYSTEM PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/json
     ${CMAKE_SOURCE_DIR}/third_party/ElaWidgetTools/include
 )
