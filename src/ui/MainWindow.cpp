@@ -281,6 +281,13 @@ void MainWindow::setupConnections()
             m_tachieWindow->setVisible(!m_tachieWindow->isVisible());
         }
     });
+
+    // === 快捷键：Esc 中止当前流式回复并保留已收到的 partial reply ===
+    // 流式途中按 Esc：把 LLMProvider::accumulatedResponse() 的内容当作"完成"
+    // 流程保存到 session（自然 finished 路径会做的事），状态文字改 "Aborted"。
+    auto *abortShortcut = new QShortcut(QKeySequence(Qt::Key_Escape), this);
+    connect(abortShortcut, &QShortcut::activated, this,
+            &MainWindow::abortStreamingAndSavePartial);
 }
 
 // ============================================================================
@@ -814,6 +821,38 @@ void MainWindow::onResponseFinished(const QString &fullResponse)
     if (m_settings->ttsEnabled() && !cleanResponse.isEmpty()) {
         m_ttsProvider->synthesize(cleanResponse, m_settings->ttsVoice());
     }
+}
+
+/**
+ * @brief Esc 中止当前流式回复并把已收到的 partial reply 保存到 session
+ *
+ * 流式途中按 Esc：先抓 LLMProvider::accumulatedResponse() 的内容再 abort()，
+ * 然后委托 onResponseFinished 走完整的"完成"流程（情绪标签剥离 + session 持久化
+ * + TTS 触发），最后把状态文字改成 "Aborted" 让用户看到是中止而非自然结束。
+ * 一个 token 都没到的情况单独处理：不写空消息。
+ */
+void MainWindow::abortStreamingAndSavePartial()
+{
+    if (!m_isStreaming) return;
+
+    const QString partial = m_provider ? m_provider->accumulatedResponse() : QString();
+    if (m_provider) m_provider->abort();
+
+    if (partial.isEmpty()) {
+        // 没收到任何 token → 不往 session 写空 assistant 消息，仅恢复输入状态
+        m_isStreaming = false;
+        m_chatPage->setInputEnabled(true);
+        m_chatPage->setStatusText("Aborted");
+        if (m_streamFlushTimer) m_streamFlushTimer->stop();
+        m_pendingBubbleText.clear();
+        m_reasoningBuffer.clear();
+        return;
+    }
+
+    // 委托给自然完成路径：onResponseFinished 会刷 pending text、剥情绪标签、
+    // 保存 session、触发 TTS。完成后覆盖状态文字为 "Aborted"。
+    onResponseFinished(partial);
+    m_chatPage->setStatusText("Aborted");
 }
 
 /** @brief LLM 请求出错，恢复输入状态并显示错误信息 */

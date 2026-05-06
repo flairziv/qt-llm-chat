@@ -70,6 +70,7 @@ private:
     void setupTachie();                         // 初始化立绘窗口
     QString buildAugmentedSystemPrompt() const; // 构建包含情绪标签指令的 system prompt
     void queuePendingBubbleText(const QString &text); // 把 token 排入流式 flush 队列
+    void abortStreamingAndSavePartial();        // Esc 中止流式：保留已收到的 partial reply
 
     AppSettings *m_settings;
     SessionManager *m_sessionManager;
