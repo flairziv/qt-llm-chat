@@ -318,6 +318,7 @@ void MainWindow::createProvider()
     if (m_streamFlushTimer) m_streamFlushTimer->stop();
     m_pendingBubbleText.clear();
     m_reasoningBuffer.clear();
+    m_firstTokenSeen = false;
 
     // 读取当前选择并持久化
     QString providerName = m_chatPage->currentProviderData();
@@ -358,6 +359,8 @@ void MainWindow::createProvider()
     connect(m_provider, &LLMProvider::errorOccurred, this, &MainWindow::onProviderError);
     connect(m_provider, &LLMProvider::reasoningTokenReceived,
             this, &MainWindow::onReasoningTokenReceived);
+    connect(m_provider, &LLMProvider::imageGenerationStarted,
+            this, &MainWindow::onImageGenerationStarted);
 }
 
 /**
@@ -675,6 +678,7 @@ void MainWindow::onSendMessage(const QString &text, const QList<Attachment> &att
     m_pendingBubbleText.clear();
     if (m_streamFlushTimer) m_streamFlushTimer->stop();
     m_reasoningBuffer.clear();
+    m_firstTokenSeen = false;
 
     // 重置 TTS 状态（中止上一轮朗读，预连接为新一轮做准备）
     m_ttsProvider->abort();
@@ -703,6 +707,13 @@ void MainWindow::onSendMessage(const QString &text, const QList<Attachment> &att
  */
 void MainWindow::onTokenReceived(const QString &token)
 {
+    // 第一条正文 token 到达时把状态文字从 "Thinking..." 切成 "Generating..."；
+    // 让用户能区分"模型在憋着"和"模型在出文"。reasoning 不计入这里。
+    if (!m_firstTokenSeen) {
+        m_firstTokenSeen = true;
+        m_chatPage->setStatusText("Generating...");
+    }
+
     // 立绘关闭或标签已解析 → 直接转发给 ChatPage
     if (!m_tachieEnabled || !m_tachieWindow || m_emotionTagParsed) {
         queuePendingBubbleText(token);
@@ -775,6 +786,22 @@ void MainWindow::flushPendingBubbleText()
 void MainWindow::onReasoningTokenReceived(const QString &token)
 {
     m_reasoningBuffer += token;
+}
+
+/**
+ * @brief Provider 开始生成图像 → 切状态文字
+ *
+ * OpenAI /v1/responses + image / /v1/images/generations 这类请求耗时较长且
+ * 没有逐 token 文本输出，沿用 "Thinking..." 会让用户以为卡死。Provider 在
+ * 触发图像生成时通过 imageGenerationStarted(count) 通知；这里把状态文字切
+ * 成 "Generating image..."，并把 m_firstTokenSeen 置为 true 防止后续可能的
+ * 文本 token 把状态再翻回 "Generating..."。
+ */
+void MainWindow::onImageGenerationStarted(int count)
+{
+    Q_UNUSED(count);
+    m_firstTokenSeen = true;
+    m_chatPage->setStatusText("Generating image...");
 }
 
 /**
@@ -984,6 +1011,7 @@ void MainWindow::onMessageRegenerate(int index)
     m_pendingBubbleText.clear();
     if (m_streamFlushTimer) m_streamFlushTimer->stop();
     m_reasoningBuffer.clear();
+    m_firstTokenSeen = false;
 
     m_ttsProvider->abort();
     m_ttsPendingPlay = false;

@@ -60,6 +60,7 @@ private slots:
     void onMessageFavoriteToggle(int index);   // 收藏/取消收藏单条消息
     void onMessageDeleteFromHere(int index);   // 删除该消息及其后的全部消息
     void onMessageRegenerate(int index);       // 重新生成 assistant 回复（截断到 user 后重发）
+    void onImageGenerationStarted(int count);  // Provider 开始图像生成 → 切状态文字
     void flushPendingBubbleText();              // 把累积的 token 批量喂给气泡（80ms 节流）
     void onReasoningTokenReceived(const QString &token); // 收到 reasoning（思考链）增量
 
@@ -102,6 +103,11 @@ private:
     // Reasoning（思考链）缓冲：reasoningTokenReceived 流入，onResponseFinished
     // 时写入 ChatMessage::reasoning 一并持久化。本轮回复内累积，新一轮重置。
     QString m_reasoningBuffer;
+
+    // 流式状态文字：每轮发起前置 false，第一条正文 token 到达时翻成 true
+    // 并把 "Thinking..." 切成 "Generating..."。让用户区分"模型还在憋着"和
+    // "已经在出文了"。
+    bool m_firstTokenSeen = false;
 
     // TTS 相关
     EdgeTTSProvider *m_ttsProvider = nullptr;    // Edge TTS 语音合成器
