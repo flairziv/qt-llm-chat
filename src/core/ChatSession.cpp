@@ -1,6 +1,9 @@
 #include "ChatSession.h"
 #include <QUuid>
 #include <QJsonDocument>
+#include <QFile>
+#include <QFileInfo>
+#include <QDir>
 
 // ============================================================
 // Attachment 序列化
@@ -20,8 +23,11 @@ QJsonObject Attachment::toJson() const
     obj["mimeType"] = mimeType;
     if (type == TextFile) {
         obj["textContent"] = textContent;
+    } else if (!localPath.isEmpty()) {
+        // 图片/文档已落盘：JSON 里只存相对路径，避免 base64 膨胀 session 文件
+        obj["localPath"] = localPath;
     } else {
-        // 图片/文档：将原始字节 base64 编码后存储为字符串
+        // 兜底：尚未落盘（持久化失败或新 attach 还没 save）→ 仍走 base64
         obj["fileData"] = QString::fromLatin1(fileData.toBase64());
     }
     return obj;
@@ -39,8 +45,12 @@ Attachment Attachment::fromJson(const QJsonObject &obj)
     if (a.type == Attachment::TextFile) {
         a.textContent = obj["textContent"].toString();
     } else {
-        // base64 字符串还原为原始字节
-        a.fileData = QByteArray::fromBase64(obj["fileData"].toString().toLatin1());
+        // 优先读 localPath（v2 schema）；fileData 是 v1 schema 的 base64 兜底，
+        // SessionManager::loadAllSessions 之后会用 localPath 把 fileData 从磁盘读回。
+        a.localPath = obj["localPath"].toString();
+        if (obj.contains("fileData")) {
+            a.fileData = QByteArray::fromBase64(obj["fileData"].toString().toLatin1());
+        }
     }
     return a;
 }
@@ -298,6 +308,68 @@ QJsonObject ChatSession::toJson() const
  * @param parent Qt 父对象，用于自动内存管理
  * @return 恢复的 ChatSession*，JSON 无效（缺少 id）时返回 nullptr
  */
+/**
+ * @brief 把图片/文档附件落盘并把相对路径写回 attachment.localPath
+ *
+ * 流程：遍历每条 message 的 attachments，跳过 TextFile 和已经有 localPath 的；
+ * 用 UUID + 原文件后缀生成唯一文件名，写到 basePath/<sid>/<uuid>.<ext>；
+ * 写入成功后把 "<sid>/<uuid>.<ext>" 设到 localPath。失败（盘满 / 权限）时
+ * localPath 保持空，toJson 自动 fallback 到 base64，session 文件还能写出。
+ */
+void ChatSession::persistAttachmentsToDisk(const QString &basePath)
+{
+    QDir baseDir(basePath);
+    if (!baseDir.exists(m_id) && !baseDir.mkpath(m_id)) {
+        return;     // 创建目录失败 -> 走 base64 兜底，不阻塞 save
+    }
+    for (ChatMessage &msg : m_messages) {
+        for (Attachment &att : msg.attachments) {
+            if (att.type == Attachment::TextFile) continue;
+            if (!att.localPath.isEmpty()) continue;   // 已落盘
+            if (att.fileData.isEmpty()) continue;     // 没东西可写
+
+            QString ext = QFileInfo(att.fileName).suffix();
+            if (ext.isEmpty()) {
+                if (att.mimeType == "image/png") ext = "png";
+                else if (att.mimeType == "image/jpeg") ext = "jpg";
+                else if (att.mimeType == "application/pdf") ext = "pdf";
+                else ext = "bin";
+            }
+            const QString uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
+            const QString rel = m_id + "/" + uuid + "." + ext;
+            QFile f(basePath + "/" + rel);
+            if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                f.write(att.fileData);
+                f.close();
+                att.localPath = rel;
+            }
+        }
+    }
+}
+
+/**
+ * @brief 用 attachment.localPath 把 fileData 从磁盘读回内存
+ *
+ * 文件不存在时静默置空（用户可能手动删了 attachments 目录）；只有图片/文档
+ * 类型才走这条路径，TextFile 的内容在 JSON 里。
+ */
+void ChatSession::loadAttachmentDataFromDisk(const QString &basePath)
+{
+    for (ChatMessage &msg : m_messages) {
+        for (Attachment &att : msg.attachments) {
+            if (att.type == Attachment::TextFile) continue;
+            if (att.localPath.isEmpty()) continue;
+            if (!att.fileData.isEmpty()) continue;    // 已经有数据（v1 base64 路径）
+
+            QFile f(basePath + "/" + att.localPath);
+            if (f.open(QIODevice::ReadOnly)) {
+                att.fileData = f.readAll();
+                f.close();
+            }
+        }
+    }
+}
+
 ChatSession* ChatSession::fromJson(const QJsonObject &obj, QObject *parent)
 {
     QString id = obj["id"].toString();

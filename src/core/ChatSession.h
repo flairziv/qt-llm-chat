@@ -13,8 +13,10 @@
  * type        - 附件类型：Image（图片）、Document（PDF 等文档）、TextFile（文本文件）
  * fileName    - 原始文件名
  * mimeType    - MIME 类型，如 "image/png"、"application/pdf"
- * fileData    - 文件原始字节（用于图片/文档的 base64 编码发送）
+ * fileData    - 文件原始字节（用于图片/文档的 base64 编码发送）；持久化后从磁盘读回时也填这里
  * textContent - 文本文件的内容（仅 TextFile 类型使用）
+ * localPath   - 图片/文档持久化到磁盘后的相对路径（attachments/<sid>/<uuid>.<ext>）；
+ *               为空表示尚未落盘，序列化时仍走 base64
  */
 struct Attachment {
     enum Type { Image, Document, TextFile };
@@ -23,6 +25,7 @@ struct Attachment {
     QString mimeType;
     QByteArray fileData;
     QString textContent;
+    QString localPath;
 
     QJsonObject toJson() const;
     static Attachment fromJson(const QJsonObject &obj);
@@ -117,6 +120,23 @@ public:
      * @return 恢复的 ChatSession 指针，如果 JSON 无效返回 nullptr
      */
     static ChatSession* fromJson(const QJsonObject &obj, QObject *parent = nullptr);
+
+    /**
+     * @brief 把还没落盘的图片/文档附件写到 basePath/<sid>/<uuid>.<ext>，
+     *        并把路径写回 attachment.localPath。已经有 localPath 的跳过；TextFile 跳过。
+     *
+     * 由 SessionManager::saveSession 在 toJson 之前调用 —— 让 JSON 里图片
+     * 走 localPath 而不是 base64，避免 session 文件被附件膨胀到 MB 级别。
+     */
+    void persistAttachmentsToDisk(const QString &basePath);
+
+    /**
+     * @brief 反向：把 attachment.localPath 指向的文件读回 fileData。
+     *
+     * 由 SessionManager::loadAllSessions 在 fromJson 之后调用。读不到的文件
+     * 静默放空 fileData（气泡显示空图，不会崩）。
+     */
+    void loadAttachmentDataFromDisk(const QString &basePath);
 
 signals:
     void messageAdded(const ChatMessage &msg);        // 新消息添加时发射

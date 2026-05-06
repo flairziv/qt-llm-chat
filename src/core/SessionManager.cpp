@@ -22,9 +22,11 @@
 SessionManager::SessionManager(const QString &dataDir, QObject *parent)
     : QObject(parent)
     , m_dataDir(dataDir + "/sessions")
+    , m_attachmentsDir(dataDir + "/attachments")
 {
     QDir dir;
     dir.mkpath(m_dataDir);
+    dir.mkpath(m_attachmentsDir);
 }
 
 // ============================================================
@@ -97,8 +99,10 @@ void SessionManager::deleteSession(const QString &id)
         if (m_sessions[i]->id() == id) {
             ChatSession *s = m_sessions.takeAt(i);
 
-            // 删除磁盘文件：sessions/{uuid}.json
+            // 删除磁盘文件：sessions/{uuid}.json + attachments/{uuid}/ 整个目录
             QFile::remove(sessionFilePath(id));
+            QDir attDir(m_attachmentsDir + "/" + id);
+            if (attDir.exists()) attDir.removeRecursively();
 
             // 如果删除的是激活会话，需要切换到其他会话
             if (m_activeSession == s) {
@@ -135,6 +139,8 @@ void SessionManager::deleteSession(const QString &id)
 void SessionManager::saveSession(ChatSession *session)
 {
     if (!session) return;
+    // 先落盘图片/文档附件取得 localPath，再 toJson 才不会把 base64 写进 session 文件
+    session->persistAttachmentsToDisk(m_attachmentsDir);
     QString path = sessionFilePath(session->id());
     QFile file(path);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
@@ -183,6 +189,8 @@ void SessionManager::loadAllSessions()
         // fromJson 内部会校验 id 字段，无效时返回 nullptr
         ChatSession *s = ChatSession::fromJson(doc.object(), this);
         if (s) {
+            // v2 schema：fromJson 只读出 localPath，这里把图片字节真正从磁盘读回
+            s->loadAttachmentDataFromDisk(m_attachmentsDir);
             m_sessions.append(s);
         }
     }

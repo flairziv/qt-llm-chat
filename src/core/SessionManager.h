@@ -125,6 +125,7 @@ signals:
 
 private:
     QString m_dataDir;                  // 会话文件存储目录（dataDir/sessions/）
+    QString m_attachmentsDir;           // 附件存储目录（dataDir/attachments/）
     QList<ChatSession*> m_sessions;     // 所有会话的内存列表
     ChatSession *m_activeSession = nullptr;  // 当前激活的会话
 
