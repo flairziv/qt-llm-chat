@@ -8,7 +8,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Network WebSockets Multimedia)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Network WebSockets Multimedia Svg)
 
 set(SOURCES
     main.cpp
@@ -32,6 +32,7 @@ set(SOURCES
     src/ui/SettingOpenAIPage.cpp
     src/ui/SettingGeneralPage.cpp
     src/ui/TachieWindow.cpp
+    src/ui/AssistantLoadingWidget.cpp
 )
 
 set(HEADERS
@@ -57,6 +58,7 @@ set(HEADERS
     src/ui/SettingGeneralPage.h
     src/ui/ProviderSettingHelpers.h
     src/ui/TachieWindow.h
+    src/ui/AssistantLoadingWidget.h
 )
 
 set(UI_FILES
@@ -113,6 +115,7 @@ target_link_libraries(LLMChat PRIVATE
     Qt${QT_VERSION_MAJOR}::Network
     Qt${QT_VERSION_MAJOR}::WebSockets
     Qt${QT_VERSION_MAJOR}::Multimedia
+    Qt${QT_VERSION_MAJOR}::Svg
     ${CMAKE_SOURCE_DIR}/third_party/ElaWidgetTools/lib/ElaWidgetTools.lib
 )
 if(WIN32)

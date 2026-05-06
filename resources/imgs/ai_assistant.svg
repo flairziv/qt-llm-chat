@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="38 6 180 180">
+  <g id="body">
+    <!-- 脸部轮廓（含两只耳朵） -->
+    <path
+      d="M 47 117
+          C 38 75, 68 38, 96 68
+          C 107 26, 119 38, 128 72
+          C 137 38, 149 26, 160 68
+          C 188 38, 218 75, 209 117
+          C 203 166, 53 166, 47 117 Z"
+      fill="#FFFFFF"
+      stroke="#333333"
+      stroke-width="8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+
+    <!-- 鼻子 -->
+    <path
+      d="M 124 130 L 132 130 L 128 136 Z"
+      fill="#FF8DA1"
+      stroke="#333333"
+      stroke-width="1.5"
+      stroke-linejoin="round"
+    />
+
+    <!-- 嘴巴 -->
+    <path
+      d="M 128 136 Q 122 144 116 142 M 128 136 Q 134 144 140 142"
+      fill="none"
+      stroke="#333333"
+      stroke-width="2.5"
+      stroke-linecap="round"
+    />
+  </g>
+  <g id="eyes">
+    <!-- 左眼：竖向圆角矩形 + 小高光 -->
+    <rect x="89" y="100" width="17" height="30" rx="8.5" fill="#333333"/>
+    <ellipse cx="94" cy="106" rx="2.7" ry="4.3" fill="#FFFFFF" opacity="0.75"/>
+
+    <!-- 右眼：镜像 -->
+    <rect x="149" y="100" width="17" height="30" rx="8.5" fill="#333333"/>
+    <ellipse cx="154" cy="106" rx="2.7" ry="4.3" fill="#FFFFFF" opacity="0.75"/>
+  </g>
+
+  <!-- eyes-pivot: 128,115 -->
+</svg>

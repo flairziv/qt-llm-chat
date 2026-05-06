@@ -15,6 +15,7 @@ class SessionListWidget;
 class ElaComboBox;
 class ElaPushButton;
 class AppSettings;
+class AssistantLoadingWidget;
 
 class ChatPage : public QWidget
 {
@@ -33,6 +34,7 @@ public:
 
     void setInputEnabled(bool enabled);
     void setStatusText(const QString &text);
+    void setLoading(bool loading);            // 控制 AssistantLoadingWidget 的眨眼动画
     void scrollToBottom();
 
     void addSession(class ChatSession *session);
@@ -88,6 +90,7 @@ private:
     ElaPushButton *m_attachButton = nullptr;
     ElaPushButton *m_sendButton = nullptr;
     QLabel *m_statusLabel = nullptr;
+    AssistantLoadingWidget *m_statusWidget = nullptr;   // 流式期间的眨眼/扫视加载头像 + 状态文字
     QWidget *m_attachPreviewWidget = nullptr;
     QHBoxLayout *m_attachPreviewLayout = nullptr;
 

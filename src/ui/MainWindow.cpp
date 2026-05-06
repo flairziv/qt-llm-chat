@@ -671,6 +671,7 @@ void MainWindow::onSendMessage(const QString &text, const QList<Attachment> &att
     m_isStreaming = true;
     m_chatPage->setInputEnabled(false);
     m_chatPage->setStatusText("Thinking...");
+    m_chatPage->setLoading(true);
 
     // 重置情绪标签解析状态（每轮回复重新解析）
     m_emotionTagParsed = false;
@@ -815,6 +816,7 @@ void MainWindow::onResponseFinished(const QString &fullResponse)
 {
     m_isStreaming = false;
     m_chatPage->setInputEnabled(true);
+    m_chatPage->setLoading(false);
     m_chatPage->setStatusText("");
 
     // 把 flush 队列里残留的 token 立刻喂掉，避免被随后的 replaceLastBubbleContent
@@ -871,6 +873,7 @@ void MainWindow::abortStreamingAndSavePartial()
         // 没收到任何 token → 不往 session 写空 assistant 消息，仅恢复输入状态
         m_isStreaming = false;
         m_chatPage->setInputEnabled(true);
+        m_chatPage->setLoading(false);
         m_chatPage->setStatusText("Aborted");
         if (m_streamFlushTimer) m_streamFlushTimer->stop();
         m_pendingBubbleText.clear();
@@ -889,6 +892,7 @@ void MainWindow::onProviderError(const QString &error)
 {
     m_isStreaming = false;
     m_chatPage->setInputEnabled(true);
+    m_chatPage->setLoading(false);
     m_chatPage->setStatusText("Error: " + error);
 
     // 出错前已收到的 token 先落到气泡里，让用户看到 partial reply
@@ -1005,6 +1009,7 @@ void MainWindow::onMessageRegenerate(int index)
     m_isStreaming = true;
     m_chatPage->setInputEnabled(false);
     m_chatPage->setStatusText("Thinking...");
+    m_chatPage->setLoading(true);
 
     m_emotionTagParsed = false;
     m_tokenBuffer.clear();

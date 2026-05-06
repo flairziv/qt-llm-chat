@@ -2,6 +2,7 @@
 
 #include "MessageBubble.h"
 #include "SessionListWidget.h"
+#include "AssistantLoadingWidget.h"
 #include "core/AppSettings.h"
 
 #include <ElaComboBox.h>
@@ -98,10 +99,12 @@ void ChatPage::setupUI()
     m_scrollArea->setWidget(m_messageContainer);
     rightLayout->addWidget(m_scrollArea, 1);
 
-    m_statusLabel = new QLabel(rightPanel);
-    m_statusLabel->setObjectName("statusLabel");
-    m_statusLabel->hide();
-    rightLayout->addWidget(m_statusLabel);
+    // 旧的纯文字 m_statusLabel 已被 AssistantLoadingWidget 取代（保留指针为 nullptr 以
+    // 兼容历史 setStatusText 调用，但所有显示都走 m_statusWidget）
+    m_statusWidget = new AssistantLoadingWidget(rightPanel);
+    m_statusWidget->setObjectName("assistantStatus");
+    m_statusWidget->hide();
+    rightLayout->addWidget(m_statusWidget);
 
     m_attachPreviewWidget = new QWidget(rightPanel);
     m_attachPreviewWidget->setObjectName("attachPreviewWidget");
@@ -407,11 +410,31 @@ void ChatPage::setInputEnabled(bool enabled)
 
 void ChatPage::setStatusText(const QString &text)
 {
+    if (!m_statusWidget) return;
     if (text.isEmpty()) {
-        m_statusLabel->hide();
+        m_statusWidget->setText("");
+        // 没文字也没动画 → 整个 widget 隐藏；动画还在跑则保留可见
+        if (!m_statusWidget->isAnimating()) {
+            m_statusWidget->hide();
+        }
     } else {
-        m_statusLabel->setText(text);
-        m_statusLabel->show();
+        m_statusWidget->setText(text);
+        m_statusWidget->show();
+    }
+}
+
+void ChatPage::setLoading(bool loading)
+{
+    if (!m_statusWidget) return;
+    if (loading) {
+        m_statusWidget->show();
+        m_statusWidget->start();
+    } else {
+        m_statusWidget->stop();
+        // 没文字就隐藏，有文字（如 "Aborted" / "Error"）保留可见
+        if (m_statusWidget->text().isEmpty()) {
+            m_statusWidget->hide();
+        }
     }
 }
 
