@@ -43,6 +43,7 @@ public:
 signals:
     void favoriteToggleRequested(int index);
     void deleteFromHereRequested(int index);
+    void regenerateRequested(int index);    // 重新生成该 assistant 回复（仅 assistant 气泡触发）
 
 private slots:
     void onContextMenu(const QPoint &pos);

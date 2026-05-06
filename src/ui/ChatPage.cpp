@@ -338,6 +338,8 @@ void ChatPage::addMessageBubble(const QString &role, const QString &content,
             this, &ChatPage::messageFavoriteToggleRequested);
     connect(bubble, &MessageBubble::deleteFromHereRequested,
             this, &ChatPage::messageDeleteFromHereRequested);
+    connect(bubble, &MessageBubble::regenerateRequested,
+            this, &ChatPage::messageRegenerateRequested);
 
     int insertIndex = m_messageLayout->count() - 1;
     if (insertIndex < 0) {

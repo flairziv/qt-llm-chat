@@ -234,6 +234,11 @@ void MessageBubble::onContextMenu(const QPoint &pos)
     QMenu menu(this);
     QAction *copyAction = menu.addAction(tr("Copy"));
     QAction *favAction = menu.addAction(m_favorite ? tr("Unfavorite") : tr("Favorite"));
+    // assistant 气泡多一个"重新生成"项：截断到本条之前的 user 消息后重发
+    QAction *regenAction = nullptr;
+    if (m_role == Assistant) {
+        regenAction = menu.addAction(tr("Regenerate from here"));
+    }
     menu.addSeparator();
     QAction *deleteAction = menu.addAction(tr("Delete from here"));
 
@@ -246,6 +251,8 @@ void MessageBubble::onContextMenu(const QPoint &pos)
         QApplication::clipboard()->setText(m_content);
     } else if (selected == favAction) {
         emit favoriteToggleRequested(m_index);
+    } else if (regenAction && selected == regenAction) {
+        emit regenerateRequested(m_index);
     } else if (selected == deleteAction) {
         emit deleteFromHereRequested(m_index);
     }

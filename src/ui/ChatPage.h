@@ -56,6 +56,7 @@ signals:
     void providerSwitched(const QString &providerName);
     void messageFavoriteToggleRequested(int index);
     void messageDeleteFromHereRequested(int index);
+    void messageRegenerateRequested(int index);
 
 private slots:
     void onSendClicked();

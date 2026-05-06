@@ -240,6 +240,8 @@ void MainWindow::setupConnections()
             this, &MainWindow::onMessageFavoriteToggle);
     connect(m_chatPage, &ChatPage::messageDeleteFromHereRequested,
             this, &MainWindow::onMessageDeleteFromHere);
+    connect(m_chatPage, &ChatPage::messageRegenerateRequested,
+            this, &MainWindow::onMessageRegenerate);
 
     // === 设置变更信号 ===
     // 旧路径是「SettingPage::settingsChanged → MainWindow::onSettingsChanged → createProvider()」，
@@ -945,4 +947,56 @@ void MainWindow::onMessageDeleteFromHere(int index)
     session->truncateFrom(index);
     m_sessionManager->saveSession(session);
     m_chatPage->loadMessages(session->messages());
+}
+
+/**
+ * @brief 重新生成指定 assistant 回复
+ *
+ * 在 assistant 气泡上点"Regenerate from here"：把该消息及其后的所有消息从
+ * session 截断（保留前一条 user 消息为最后输入），然后走完整的流式发起流程
+ * 重新喂给 Provider。流式中或前一条不是 user 消息时直接 no-op。
+ */
+void MainWindow::onMessageRegenerate(int index)
+{
+    if (m_isStreaming) return;
+    if (index <= 0) return;     // 至少要有前置 user 消息才有重发的意义
+    ChatSession *session = m_sessionManager->activeSession();
+    if (!session) return;
+    if (index >= session->messages().size()) return;
+    if (session->messageAt(index).role != "assistant") return;
+    if (session->messageAt(index - 1).role != "user") return;
+
+    // 截断 + 持久化 + 重新渲染气泡（少 1 条 assistant，最末是触发重发的 user）
+    session->truncateFrom(index);
+    m_sessionManager->saveSession(session);
+    m_chatPage->loadMessages(session->messages());
+
+    // 预创建空 assistant 气泡，后续 onTokenReceived 会逐步填充
+    m_chatPage->addMessageBubble("assistant", "");
+
+    // 进入流式状态（与 onSendMessage 后半段保持一致：状态字、缓冲、TTS、发请求）
+    m_isStreaming = true;
+    m_chatPage->setInputEnabled(false);
+    m_chatPage->setStatusText("Thinking...");
+
+    m_emotionTagParsed = false;
+    m_tokenBuffer.clear();
+    m_pendingBubbleText.clear();
+    if (m_streamFlushTimer) m_streamFlushTimer->stop();
+    m_reasoningBuffer.clear();
+
+    m_ttsProvider->abort();
+    m_ttsPendingPlay = false;
+    m_ttsPlayer->stop();
+    m_ttsPlayer->setMedia(QMediaContent());
+    if (m_settings->ttsEnabled()) {
+        m_ttsProvider->preConnect();
+    }
+
+    m_provider->sendStreamingRequest(
+        session->messages(),
+        buildAugmentedSystemPrompt(),
+        m_settings->maxTokens(),
+        m_settings->temperature()
+    );
 }
