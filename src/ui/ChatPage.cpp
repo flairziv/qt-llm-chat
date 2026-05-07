@@ -99,8 +99,7 @@ void ChatPage::setupUI()
     m_scrollArea->setWidget(m_messageContainer);
     rightLayout->addWidget(m_scrollArea, 1);
 
-    // 旧的纯文字 m_statusLabel 已被 AssistantLoadingWidget 取代（保留指针为 nullptr 以
-    // 兼容历史 setStatusText 调用，但所有显示都走 m_statusWidget）
+    // 流式时显示眨眼/扫视头像 + 状态文字，setStatusText / setLoading 控制
     m_statusWidget = new AssistantLoadingWidget(rightPanel);
     m_statusWidget->setObjectName("assistantStatus");
     m_statusWidget->hide();

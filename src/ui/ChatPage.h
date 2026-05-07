@@ -1,7 +1,6 @@
 #pragma once
 
 #include <QHBoxLayout>
-#include <QLabel>
 #include <QList>
 #include <QScrollArea>
 #include <QTextEdit>
@@ -90,7 +89,6 @@ private:
     QTextEdit *m_inputEdit = nullptr;
     ElaPushButton *m_attachButton = nullptr;
     ElaPushButton *m_sendButton = nullptr;
-    QLabel *m_statusLabel = nullptr;
     AssistantLoadingWidget *m_statusWidget = nullptr;   // 流式期间的眨眼/扫视加载头像 + 状态文字
     QWidget *m_attachPreviewWidget = nullptr;
     QHBoxLayout *m_attachPreviewLayout = nullptr;
