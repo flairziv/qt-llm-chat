@@ -140,4 +140,12 @@ config/
 
 ## License
 
-MIT License
+代码部分（`src/`、`main.cpp`、`CMakeLists.txt`、`resources/style/`）使用 **MIT License**。
+
+**美术资产例外**：以下图标 / 插画文件版权归本项目作者所有，**仅授权在本项目内做非商业用途使用**，不随 MIT 一并授权；如需商业使用请单独联系授权：
+
+- `resources/imgs/favicon.ico`
+- `resources/imgs/tray.ico`
+- `resources/imgs/ai_assistant.svg`
+
+第三方资源（如 `resources/ATRI0.3/` 立绘）按其原始来源的协议使用，不在本仓库授权范围内。
