@@ -865,11 +865,20 @@ void MainWindow::onProviderError(const QString &error)
     m_isStreaming = false;
     m_chatPage->setInputEnabled(true);
     m_chatPage->setLoading(false);
-    m_chatPage->setStatusText("Error: " + error);
 
     // 出错前已收到的 token 先落到气泡里，让用户看到 partial reply
     if (m_streamFlushTimer) m_streamFlushTimer->stop();
     flushPendingBubbleText();
+
+    // 与 abortStreamingAndSavePartial 一致：如果一个 token 都没到，
+    // 把 beginStreamingForActiveSession 预建的空 assistant 气泡清掉，
+    // 否则会留 orphan（session 没这条消息，刷新会话后会消失）。
+    const QString partial = m_provider ? m_provider->accumulatedResponse() : QString();
+    if (partial.isEmpty()) {
+        m_chatPage->removeLastBubble();
+    }
+
+    m_chatPage->setStatusText("Error: " + error);
 }
 
 // ============================================================================
