@@ -13,14 +13,19 @@ QString normalizedReasoningEffort(const QString &effort)
 
 bool supportsClaudeEffort(const QString &model)
 {
-    return model.startsWith("claude-opus-4-6")
+    return model.startsWith("claude-opus-4-7")
+        || model.startsWith("claude-sonnet-4-7")
+        || model.startsWith("claude-haiku-4-7")
+        || model.startsWith("claude-opus-4-6")
         || model.startsWith("claude-sonnet-4-6")
         || model.startsWith("claude-opus-4-5");
 }
 
 bool usesAdaptiveThinking(const QString &model)
 {
-    return model.startsWith("claude-opus-4-6")
+    return model.startsWith("claude-opus-4-7")
+        || model.startsWith("claude-sonnet-4-7")
+        || model.startsWith("claude-opus-4-6")
         || model.startsWith("claude-sonnet-4-6");
 }
 
