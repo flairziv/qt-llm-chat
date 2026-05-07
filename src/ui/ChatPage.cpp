@@ -371,6 +371,21 @@ void ChatPage::replaceLastBubbleContent(const QString &text)
     scrollToBottom();
 }
 
+/**
+ * @brief 删除并销毁最末一条气泡
+ *
+ * 主要用途：流式开始时预建的空 assistant 气泡，在 Esc 中止且未收到任何
+ * token 时会成为孤儿（session 里没有对应消息），需要主动清掉避免 UI 与
+ * 持久化状态错位。空列表时安全 no-op。
+ */
+void ChatPage::removeLastBubble()
+{
+    if (m_bubbles.isEmpty()) return;
+    MessageBubble *last = m_bubbles.takeLast();
+    m_messageLayout->removeWidget(last);
+    last->deleteLater();
+}
+
 void ChatPage::clearMessages()
 {
     for (MessageBubble *bubble : m_bubbles) {

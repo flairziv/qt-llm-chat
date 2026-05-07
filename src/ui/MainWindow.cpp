@@ -839,7 +839,10 @@ void MainWindow::abortStreamingAndSavePartial()
     if (m_provider) m_provider->abort();
 
     if (partial.isEmpty()) {
-        // 没收到任何 token → 不往 session 写空 assistant 消息，仅恢复输入状态
+        // 没收到任何 token → 不往 session 写空 assistant 消息；同时把
+        // beginStreamingForActiveSession 预建的空 assistant 气泡也清掉，
+        // 避免 UI 留 orphan（session 里没这条消息，刷新会话就会消失）
+        m_chatPage->removeLastBubble();
         m_isStreaming = false;
         m_chatPage->setInputEnabled(true);
         m_chatPage->setLoading(false);

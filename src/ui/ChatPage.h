@@ -28,6 +28,7 @@ public:
                           int index = -1, bool favorite = false);
     void appendToLastBubble(const QString &token);
     void replaceLastBubbleContent(const QString &text);
+    void removeLastBubble();                  // 删除最末一条气泡（用于 abort 后清理空 assistant 气泡）
     void clearMessages();
     void loadMessages(const QList<ChatMessage> &messages);
     void setBubbleFavorite(int index, bool favorite);
