@@ -664,39 +664,8 @@ void MainWindow::onSendMessage(const QString &text, const QList<Attachment> &att
     session->addMessage(userMsg);
     m_chatPage->addMessageBubble("user", text, attachments);
 
-    // 预创建空的 assistant 气泡，后续 onTokenReceived 会逐步填充
-    m_chatPage->addMessageBubble("assistant", "");
-
-    // 进入流式状态
-    m_isStreaming = true;
-    m_chatPage->setInputEnabled(false);
-    m_chatPage->setStatusText("Thinking...");
-    m_chatPage->setLoading(true);
-
-    // 重置情绪标签解析状态（每轮回复重新解析）
-    m_emotionTagParsed = false;
-    m_tokenBuffer.clear();
-    m_pendingBubbleText.clear();
-    if (m_streamFlushTimer) m_streamFlushTimer->stop();
-    m_reasoningBuffer.clear();
-    m_firstTokenSeen = false;
-
-    // 重置 TTS 状态（中止上一轮朗读，预连接为新一轮做准备）
-    m_ttsProvider->abort();
-    m_ttsPendingPlay = false;
-    m_ttsPlayer->stop();
-    m_ttsPlayer->setMedia(QMediaContent());
-    if (m_settings->ttsEnabled()) {
-        m_ttsProvider->preConnect();
-    }
-
-    // 发起流式请求（立绘启用时使用包含情绪指令的 system prompt）
-    m_provider->sendStreamingRequest(
-        session->messages(),
-        buildAugmentedSystemPrompt(),
-        m_settings->maxTokens(),
-        m_settings->temperature()
-    );
+    // 预建空 assistant 气泡 + 重置流式状态 + 发起请求（与 onMessageRegenerate 共用）
+    beginStreamingForActiveSession();
 }
 
 /**
@@ -981,31 +950,21 @@ void MainWindow::onMessageDeleteFromHere(int index)
 }
 
 /**
- * @brief 重新生成指定 assistant 回复
+ * @brief 启动一轮流式请求的公共序章
  *
- * 在 assistant 气泡上点"Regenerate from here"：把该消息及其后的所有消息从
- * session 截断（保留前一条 user 消息为最后输入），然后走完整的流式发起流程
- * 重新喂给 Provider。流式中或前一条不是 user 消息时直接 no-op。
+ * 假设 session 已由调用方准备好（onSendMessage 加完 user 消息 / onMessageRegenerate
+ * 截断到 user 消息），这里负责：预建空 assistant 气泡、把 UI 切到流式状态、
+ * 重置缓冲与 first-token / TTS 状态、发起 sendStreamingRequest。
+ *
+ * 没有活跃 session 时直接 no-op，调用方先校验。
  */
-void MainWindow::onMessageRegenerate(int index)
+void MainWindow::beginStreamingForActiveSession()
 {
-    if (m_isStreaming) return;
-    if (index <= 0) return;     // 至少要有前置 user 消息才有重发的意义
     ChatSession *session = m_sessionManager->activeSession();
     if (!session) return;
-    if (index >= session->messages().size()) return;
-    if (session->messageAt(index).role != "assistant") return;
-    if (session->messageAt(index - 1).role != "user") return;
 
-    // 截断 + 持久化 + 重新渲染气泡（少 1 条 assistant，最末是触发重发的 user）
-    session->truncateFrom(index);
-    m_sessionManager->saveSession(session);
-    m_chatPage->loadMessages(session->messages());
-
-    // 预创建空 assistant 气泡，后续 onTokenReceived 会逐步填充
     m_chatPage->addMessageBubble("assistant", "");
 
-    // 进入流式状态（与 onSendMessage 后半段保持一致：状态字、缓冲、TTS、发请求）
     m_isStreaming = true;
     m_chatPage->setInputEnabled(false);
     m_chatPage->setStatusText("Thinking...");
@@ -1032,4 +991,30 @@ void MainWindow::onMessageRegenerate(int index)
         m_settings->maxTokens(),
         m_settings->temperature()
     );
+}
+
+/**
+ * @brief 重新生成指定 assistant 回复
+ *
+ * 在 assistant 气泡上点"Regenerate from here"：把该消息及其后的所有消息从
+ * session 截断（保留前一条 user 消息为最后输入），然后走完整的流式发起流程
+ * 重新喂给 Provider。流式中或前一条不是 user 消息时直接 no-op。
+ */
+void MainWindow::onMessageRegenerate(int index)
+{
+    if (m_isStreaming) return;
+    if (index <= 0) return;     // 至少要有前置 user 消息才有重发的意义
+    ChatSession *session = m_sessionManager->activeSession();
+    if (!session) return;
+    if (index >= session->messages().size()) return;
+    if (session->messageAt(index).role != "assistant") return;
+    if (session->messageAt(index - 1).role != "user") return;
+
+    // 截断 + 持久化 + 重新渲染气泡（少 1 条 assistant，最末是触发重发的 user）
+    session->truncateFrom(index);
+    m_sessionManager->saveSession(session);
+    m_chatPage->loadMessages(session->messages());
+
+    // 预建空 assistant 气泡 + 重置流式状态 + 发起请求（与 onSendMessage 共用）
+    beginStreamingForActiveSession();
 }

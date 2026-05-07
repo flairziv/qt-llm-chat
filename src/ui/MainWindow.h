@@ -73,6 +73,7 @@ private:
     QString buildAugmentedSystemPrompt() const; // 构建包含情绪标签指令的 system prompt
     void queuePendingBubbleText(const QString &text); // 把 token 排入流式 flush 队列
     void abortStreamingAndSavePartial();        // Esc 中止流式：保留已收到的 partial reply
+    void beginStreamingForActiveSession();      // 复用：预建气泡 + 重置状态 + 发起流式请求
 
     AppSettings *m_settings;
     SessionManager *m_sessionManager;
