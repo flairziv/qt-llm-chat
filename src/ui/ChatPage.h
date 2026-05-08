@@ -40,6 +40,7 @@ public:
     void addSession(class ChatSession *session);
     void removeSession(const QString &id);
     void setActiveSession(const QString &id);
+    void moveSessionToTop(const QString &id);     // 把指定会话推到列表顶部（消息发完用）
     void refreshSessionList(const QList<ChatSession *> &sessions);
 
     void setProviderIndex(int index);

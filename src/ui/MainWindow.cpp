@@ -815,6 +815,9 @@ void MainWindow::onResponseFinished(const QString &fullResponse)
         assistantMsg.reasoning = m_reasoningBuffer;
         session->addMessage(assistantMsg);
         m_sessionManager->saveSession(session);
+
+        // 当前会话刚有新回复 → 推到列表顶部，最近活跃优先
+        m_chatPage->moveSessionToTop(session->id());
     }
 
     // TTS 朗读 AI 回复（预连接已就绪，直接发 SSML 零延迟）

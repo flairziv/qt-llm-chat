@@ -473,6 +473,11 @@ void ChatPage::setActiveSession(const QString &id)
     m_sessionList->setActiveSession(id);
 }
 
+void ChatPage::moveSessionToTop(const QString &id)
+{
+    m_sessionList->moveSessionToTop(id);
+}
+
 void ChatPage::refreshSessionList(const QList<ChatSession *> &sessions)
 {
     m_sessionList->refreshList(sessions);
