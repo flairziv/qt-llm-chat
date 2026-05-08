@@ -1,26 +1,26 @@
 #include "SessionListWidget.h"
 #include "core/ChatSession.h"
-
+#include <QApplication>
+#include <QMenu>
 #include <QLabel>
 #include <QLineEdit>
-#include <QMenu>
+#include <QPalette>
 #include <QVBoxLayout>
-
-#include "ElaContentDialog.h"
+#include <ElaContentDialog.h>
+#include <ElaTheme.h>
 
 namespace {
 
-struct PromptResult {
-    bool accepted = false;
-    QString text;
-};
-
 /**
- * @brief 主题一致的文本输入对话框 —— 替代 QInputDialog::getText
+ * @brief 弹出一个跟随 ElaTheme 主题的文本输入对话框
  *
- * 原生 QInputDialog 的标题栏使用 OS 样式，跟 ElaTheme 不协调；
- * 用 ElaContentDialog 包一个 QLineEdit，回车确认 / Esc 取消。
+ * 替代 QInputDialog（标题栏走 OS 风格，与应用主题不一致）。
+ * 使用 ElaContentDialog 作为载体，里面塞一个 QLabel + QLineEdit。
+ *
+ * @return {accepted, trimmed text}
  */
+struct PromptResult { bool accepted; QString text; };
+
 PromptResult promptForText(QWidget *parent, const QString &title,
                            const QString &labelText, const QString &initial)
 {
@@ -90,6 +90,19 @@ void SessionListWidget::setupUI()
     connect(this, &QListWidget::itemClicked, this, &SessionListWidget::onItemClicked);
     // 右键请求菜单 → onContextMenu
     connect(this, &QListWidget::customContextMenuRequested, this, &SessionListWidget::onContextMenu);
+
+    // 同步主题：QListWidget item 的文字颜色取自自身 palette，
+    // ElaWindow 的内部 palette 会拦截 qApp->setPalette 的传播，
+    // 必须在切换主题时显式把 qApp 的 Text / HighlightedText 拷给本控件。
+    auto applyThemePalette = [this]() {
+        QPalette pal = palette();
+        pal.setColor(QPalette::Text, qApp->palette().color(QPalette::Text));
+        pal.setColor(QPalette::HighlightedText, qApp->palette().color(QPalette::HighlightedText));
+        setPalette(pal);
+        viewport()->update();
+    };
+    applyThemePalette();
+    connect(eTheme, &ElaTheme::themeModeChanged, this, applyThemePalette);
 }
 
 // ============================================================================
@@ -111,18 +124,21 @@ void SessionListWidget::setupUI()
  */
 void SessionListWidget::addSession(ChatSession *session)
 {
+    if (!session) return;
     auto *item = new QListWidgetItem(session->title());
-    item->setData(Qt::UserRole, session->id());   // 将会话 ID 存储在 UserRole 中
+    item->setData(Qt::UserRole, session->id());
     item->setToolTip(session->updatedAt().toString("yyyy-MM-dd hh:mm"));
-    insertItem(0, item);     // 插入到列表顶部（最新的在最上面）
-    setCurrentItem(item);    // 自动选中新创建的会话
+    insertItem(0, item);
+    setCurrentItem(item);
 
     // 监听会话标题变化，实时更新列表项文本
-    connect(session, &ChatSession::titleChanged, this, [this, session](const QString &title) {
+    // 使用 session 作为 context（Qt5 风格）：session 销毁时自动断开连接，避免悬空引用
+    QString sid = session->id();
+    connect(session, &ChatSession::titleChanged, session, [this, sid](const QString &title) {
         for (int i = 0; i < count(); ++i) {
             QListWidgetItem *it = this->item(i);
-            if (it->data(Qt::UserRole).toString() == session->id()) {
-                it->setText(title);  // 找到对应项，更新显示文本
+            if (it && it->data(Qt::UserRole).toString() == sid) {
+                it->setText(title);
                 break;
             }
         }
@@ -153,6 +169,21 @@ void SessionListWidget::setActiveSession(const QString &id)
     for (int i = 0; i < count(); ++i) {
         if (item(i)->data(Qt::UserRole).toString() == id) {
             setCurrentRow(i);
+            return;
+        }
+    }
+}
+
+/**
+ * @brief 将指定会话移到列表顶部（发送消息后调用，保持最近活跃在最上面）
+ */
+void SessionListWidget::moveSessionToTop(const QString &id)
+{
+    for (int i = 1; i < count(); ++i) {  // 从 1 开始，已在顶部的无需移动
+        if (item(i)->data(Qt::UserRole).toString() == id) {
+            QListWidgetItem *it = takeItem(i);
+            insertItem(0, it);
+            setCurrentItem(it);
             return;
         }
     }
@@ -197,29 +228,27 @@ void SessionListWidget::onItemClicked(QListWidgetItem *item)
  */
 void SessionListWidget::onContextMenu(const QPoint &pos)
 {
-    QListWidgetItem *item = itemAt(pos);  // 获取右键点击位置的列表项
-    if (!item) return;                     // 点击空白区域，忽略
+    QListWidgetItem *item = itemAt(pos);
+    if (!item) return;
 
     QString id = item->data(Qt::UserRole).toString();
 
-    // 构建并弹出右键菜单
     QMenu menu(this);
     QAction *renameAction = menu.addAction("Rename");
     QAction *exportAction = menu.addAction("Export");
     menu.addSeparator();
     QAction *deleteAction = menu.addAction("Delete");
 
-    QAction *selected = menu.exec(mapToGlobal(pos));  // 阻塞式弹出菜单
-    if (selected == renameAction) {
-        const auto result = promptForText(this, "Rename Session",
-                                          "New name:", item->text());
-        if (result.accepted && !result.text.isEmpty() && result.text != item->text()) {
+    QAction *selected = menu.exec(mapToGlobal(pos));
+    if (selected == deleteAction) {
+        emit sessionDeleteRequested(id);
+    } else if (selected == renameAction) {
+        const auto result = promptForText(this, "Rename Session", "New name:", item->text());
+        if (result.accepted && !result.text.isEmpty()) {
             item->setText(result.text);
             emit sessionRenameRequested(id, result.text);
         }
     } else if (selected == exportAction) {
         emit sessionExportRequested(id);
-    } else if (selected == deleteAction) {
-        emit sessionDeleteRequested(id);
     }
 }

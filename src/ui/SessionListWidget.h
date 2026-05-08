@@ -36,11 +36,12 @@ public:
     void addSession(ChatSession *session);     // 添加一个会话到列表顶部
     void removeSession(const QString &id);     // 按 ID 移除指定会话
     void setActiveSession(const QString &id);  // 按 ID 高亮选中指定会话
+    void moveSessionToTop(const QString &id);  // 将指定会话移到列表顶部
     void refreshList(const QList<ChatSession*> &sessions);  // 清空并重新填充整个列表
 
 signals:
-    void sessionSelected(const QString &id);         // 用户点击选中某个会话
-    void sessionDeleteRequested(const QString &id);   // 用户通过右键菜单请求删除会话
+    void sessionSelected(const QString &id);
+    void sessionDeleteRequested(const QString &id);
     void sessionRenameRequested(const QString &id, const QString &newName);
     void sessionExportRequested(const QString &id);
 
