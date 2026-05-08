@@ -95,38 +95,43 @@ void ClaudeProvider::doSendStreamingRequest(
         m["role"] = msg.role;
 
         if (msg.attachments.isEmpty()) {
+            // 纯文本消息：content 为字符串
             m["content"] = msg.content;
         } else {
+            // 多模态消息：content 为数组，包含 image/document/text 内容块
+            // Claude API 格式：
+            //   image    → {"type":"image", "source":{"type":"base64","media_type":"...","data":"..."}}
+            //   document → {"type":"document", "source":{"type":"base64","media_type":"...","data":"..."}}
+            //   text     → {"type":"text", "text":"..."}
             QJsonArray contentArray;
 
             for (const auto &att : msg.attachments) {
                 if (att.type == Attachment::Image) {
+                    // 图片：base64 编码发送
                     QJsonObject imageBlock;
                     imageBlock["type"] = "image";
-
                     QJsonObject source;
                     source["type"] = "base64";
                     source["media_type"] = att.mimeType;
                     source["data"] = QString::fromLatin1(att.fileData.toBase64());
                     imageBlock["source"] = source;
-
                     contentArray.append(imageBlock);
                 } else if (att.type == Attachment::Document) {
-                    QJsonObject documentBlock;
-                    documentBlock["type"] = "document";
-
+                    // PDF 等文档：Claude 原生支持 document 类型
+                    QJsonObject docBlock;
+                    docBlock["type"] = "document";
                     QJsonObject source;
                     source["type"] = "base64";
                     source["media_type"] = att.mimeType;
                     source["data"] = QString::fromLatin1(att.fileData.toBase64());
-                    documentBlock["source"] = source;
-
-                    contentArray.append(documentBlock);
+                    docBlock["source"] = source;
+                    contentArray.append(docBlock);
                 }
                 // TextFile 由 flattenTextAttachments 统一拼接到下方文本块
             }
 
-            const QString fullText = flattenTextAttachments(msg.attachments) + msg.content;
+            // 文本内容块：文件内容 + 用户输入的消息
+            QString fullText = flattenTextAttachments(msg.attachments) + msg.content;
             if (!fullText.trimmed().isEmpty()) {
                 QJsonObject textBlock;
                 textBlock["type"] = "text";
