@@ -6,6 +6,9 @@
 #include <QSpinBox>
 #include <QHBoxLayout>
 #include <QButtonGroup>
+#include <QCoreApplication>
+#include <QDir>
+#include <QFile>
 #include <ElaRadioButton.h>
 #include <ElaScrollPageArea.h>
 #include <ElaText.h>
@@ -23,6 +26,7 @@ SettingGeneralPage::SettingGeneralPage(AppSettings *settings, QWidget *parent)
     ui->scrollArea->viewport()->setAutoFillBackground(false);
     setupRoleNameSection();
     setupPromptTemplatesSection();
+    setupTachieCharacterSection();
     setupBackgroundSection();
     setupTTSSection();
     loadSettings();
@@ -37,9 +41,12 @@ SettingGeneralPage::~SettingGeneralPage()
 /**
  * @brief 构建 "Role Names" 设置区域
  *
- * 包含两个输入框：User Name / Assistant Name，
- * 修改后自动保存并发射 settingsChanged 信号，
- * MainWindow 收到后刷新所有气泡标签。
+ * 包含两个输入框：
+ * - User Name：自定义用户消息气泡上方的显示名（默认 "You"）
+ * - Assistant Name：自定义助手消息气泡上方的显示名（默认 "Assistant"）
+ *
+ * 修改后自动保存到 settings.ini 并发射 settingsChanged 信号，
+ * MainWindow 收到后调用 ChatPage::updateRoleNames() 即时刷新所有气泡标签。
  */
 void SettingGeneralPage::setupRoleNameSection()
 {
@@ -131,6 +138,53 @@ void SettingGeneralPage::setupPromptTemplatesSection()
         }
         m_settings->setPromptTemplates(lines);
     });
+}
+
+/**
+ * @brief 构建 "Tachie Character" 设置区域
+ *
+ * 扫描 config/ 下所有包含 config.ini 的子目录，作为立绘角色候选。
+ */
+void SettingGeneralPage::setupTachieCharacterSection()
+{
+    QVBoxLayout *layout = ui->verticalLayout_2;
+    int insertIdx = layout->indexOf(ui->noteLabel);
+
+    ElaScrollPageArea *area = new ElaScrollPageArea(this);
+    QHBoxLayout *areaLayout = new QHBoxLayout(area);
+    areaLayout->setContentsMargins(15, 0, 15, 0);
+
+    ElaText *label = new ElaText("Tachie Character", this);
+    label->setTextPixelSize(15);
+    areaLayout->addWidget(label);
+    areaLayout->addStretch();
+
+    ElaComboBox *combo = new ElaComboBox(this);
+    combo->setFixedWidth(200);
+
+    // 扫描 config/ 下的角色目录
+    QString configRoot = QCoreApplication::applicationDirPath() + "/config";
+    QDir configDir(configRoot);
+    QStringList subdirs = configDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &sub : subdirs) {
+        if (QFile::exists(configRoot + "/" + sub + "/config.ini")) {
+            combo->addItem(sub);
+        }
+    }
+    if (combo->count() == 0) {
+        combo->addItem("ATRI0.3");
+    }
+
+    QString current = m_settings->tachieResourceDir();
+    int idx = combo->findText(current);
+    if (idx >= 0) combo->setCurrentIndex(idx);
+
+    connect(combo, &QComboBox::currentTextChanged, this, [this](const QString &text) {
+        m_settings->setTachieResourceDir(text);
+    });
+
+    areaLayout->addWidget(combo);
+    layout->insertWidget(insertIdx++, area);
 }
 
 void SettingGeneralPage::setupBackgroundSection()

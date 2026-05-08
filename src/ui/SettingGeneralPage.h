@@ -23,6 +23,7 @@ private:
     void setupTTSSection();
     void setupRoleNameSection();
     void setupPromptTemplatesSection();
+    void setupTachieCharacterSection();
 
     Ui::SettingGeneralPage *ui;
     AppSettings *m_settings;
