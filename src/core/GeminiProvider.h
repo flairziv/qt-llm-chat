@@ -1,7 +1,18 @@
 #pragma once
-
 #include "LLMProvider.h"
 
+/**
+ * @brief Google Gemini API 提供者
+ *
+ * 通过 Google AI Studio 的 REST API 发起流式请求：
+ *   POST https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?alt=sse&key={API_KEY}
+ *
+ * 请求/响应格式与 Claude/OpenAI 完全不同：
+ * - 使用 contents 数组（role="user"/"model"，parts=[{text/inlineData}]）
+ * - 支持多模态（inlineData 嵌入 base64 图片）
+ * - systemInstruction 作为独立字段
+ * - 返回 candidates[0].content.parts[0].text
+ */
 class GeminiProvider : public LLMProvider
 {
     Q_OBJECT

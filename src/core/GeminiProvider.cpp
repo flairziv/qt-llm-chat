@@ -1,5 +1,4 @@
 #include "GeminiProvider.h"
-
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -17,6 +16,15 @@ GeminiProvider::GeminiProvider(QNetworkAccessManager *nam,
 {
 }
 
+/**
+ * @brief 构建 Gemini 请求并发起流式请求
+ *
+ * Gemini API 与 OpenAI/Claude 的关键差异：
+ * - role 只有 "user" 和 "model"（非 "assistant"）
+ * - 内容嵌套在 parts 数组中：{text:"..."} 或 {inlineData:{mimeType,data}}
+ * - systemInstruction 是顶层字段
+ * - generationConfig 包含 maxOutputTokens 和 temperature
+ */
 void GeminiProvider::doSendStreamingRequest(
     const QList<ChatMessage> &messages,
     const QString &systemPrompt,
@@ -31,38 +39,43 @@ void GeminiProvider::doSendStreamingRequest(
         return;
     }
 
-    const QString url = QStringLiteral("%1/v1beta/models/%2:streamGenerateContent?alt=sse&key=%3")
-                            .arg(m_baseUrl, m_model, m_apiKey);
+    // URL: {baseUrl}/v1beta/models/{model}:streamGenerateContent?alt=sse&key={key}
+    QString url = QStringLiteral("%1/v1beta/models/%2:streamGenerateContent?alt=sse&key=%3")
+                      .arg(m_baseUrl, m_model, m_apiKey);
 
     QNetworkRequest request = makeJsonRequest(QUrl(url));
 
     QJsonObject body;
 
-    QJsonObject generationConfig;
-    generationConfig["maxOutputTokens"] = maxTokens;
-    generationConfig["temperature"] = temperature;
-    body["generationConfig"] = generationConfig;
+    // 生成配置
+    QJsonObject genConfig;
+    genConfig["maxOutputTokens"] = maxTokens;
+    genConfig["temperature"] = temperature;
+    body["generationConfig"] = genConfig;
 
+    // System instruction（可选）
     if (!systemPrompt.isEmpty()) {
-        QJsonObject systemInstruction;
-        QJsonArray systemParts;
-        QJsonObject systemPart;
-        systemPart["text"] = systemPrompt;
-        systemParts.append(systemPart);
-        systemInstruction["parts"] = systemParts;
-        body["systemInstruction"] = systemInstruction;
+        QJsonObject sysInst;
+        QJsonArray sysParts;
+        QJsonObject sysPart;
+        sysPart["text"] = systemPrompt;
+        sysParts.append(sysPart);
+        sysInst["parts"] = sysParts;
+        body["systemInstruction"] = sysInst;
     }
 
+    // Contents：消息列表
     QJsonArray contents;
     for (const auto &msg : messages) {
         if (msg.role == "system") continue;
 
         QJsonObject content;
-        content["role"] = (msg.role == "assistant") ? QStringLiteral("model")
-                                                    : QStringLiteral("user");
+        // Gemini 用 "user" 和 "model"，需要从 "assistant" 转换
+        content["role"] = (msg.role == "assistant") ? QStringLiteral("model") : QStringLiteral("user");
 
         QJsonArray parts;
 
+        // 附件（图片）作为 inlineData
         for (const auto &att : msg.attachments) {
             if (att.type == Attachment::Image) {
                 QJsonObject inlinePart;
@@ -72,8 +85,10 @@ void GeminiProvider::doSendStreamingRequest(
                 inlinePart["inlineData"] = inlineData;
                 parts.append(inlinePart);
             }
+            // 文本文件内容合并到文本部分（下面处理）
         }
 
+        // 组合文本内容（文本文件 + Document 占位提示 + 用户消息）
         QString textPart = flattenTextAttachments(msg.attachments);
         for (const auto &att : msg.attachments) {
             if (att.type == Attachment::Document) {
@@ -83,9 +98,9 @@ void GeminiProvider::doSendStreamingRequest(
         textPart += msg.content;
 
         if (!textPart.trimmed().isEmpty()) {
-            QJsonObject textObject;
-            textObject["text"] = textPart;
-            parts.append(textObject);
+            QJsonObject tp;
+            tp["text"] = textPart;
+            parts.append(tp);
         }
 
         if (!parts.isEmpty()) {
@@ -99,19 +114,27 @@ void GeminiProvider::doSendStreamingRequest(
     connectReplySignals(reply);
 }
 
+/**
+ * @brief 解析 Gemini SSE 事件
+ *
+ * 每个 SSE event 的 data 是 JSON：
+ *   {"candidates":[{"content":{"parts":[{"text":"xxx"}],"role":"model"},...}]}
+ * 提取 parts[0].text 作为 token 返回。
+ */
 LLMProviderParseResult GeminiProvider::parseSSEData(const QByteArray &data)
 {
-    const QJsonDocument doc = QJsonDocument::fromJson(data);
+    QJsonDocument doc = QJsonDocument::fromJson(data);
     if (doc.isNull()) return {};
 
-    const QJsonArray candidates = doc.object().value("candidates").toArray();
+    QJsonObject obj = doc.object();
+    QJsonArray candidates = obj["candidates"].toArray();
     if (candidates.isEmpty()) return {};
 
-    const QJsonObject content = candidates[0].toObject().value("content").toObject();
-    const QJsonArray parts = content.value("parts").toArray();
+    QJsonObject content = candidates[0].toObject()["content"].toObject();
+    QJsonArray parts = content["parts"].toArray();
     if (parts.isEmpty()) return {};
 
     LLMProviderParseResult result;
-    result.contentToken = parts[0].toObject().value("text").toString();
+    result.contentToken = parts[0].toObject()["text"].toString();
     return result;
 }
