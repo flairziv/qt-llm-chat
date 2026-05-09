@@ -143,7 +143,7 @@ void AppSettings::setClaudeApiKey(const QString &key) { m_settings->setValue("Cl
 QString AppSettings::claudeBaseUrl() const { return m_settings->value("Claude/base_url", "https://api.anthropic.com").toString(); }
 void AppSettings::setClaudeBaseUrl(const QString &url) { m_settings->setValue("Claude/base_url", url); scheduleProviderFlush(); }
 
-QString AppSettings::claudeModel() const { return m_settings->value("Claude/model", "claude-sonnet-4-20250514").toString(); }
+QString AppSettings::claudeModel() const { return m_settings->value("Claude/model", "claude-sonnet-4-7").toString(); }
 void AppSettings::setClaudeModel(const QString &model) { m_settings->setValue("Claude/model", model); scheduleProviderFlush(); }
 
 QString AppSettings::claudeReasoningEffort() const { return m_settings->value("Claude/reasoning_effort").toString(); }
