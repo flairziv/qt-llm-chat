@@ -3,7 +3,6 @@
 #include <QMenu>
 #include <QIcon>
 #include <QFile>
-#include <QPalette>
 #include <QAbstractNativeEventFilter>
 
 #ifdef Q_OS_WIN
@@ -53,7 +52,7 @@ int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
     app.setApplicationName("LLMChat");
-    app.setOrganizationName("LLMChat");
+    app.setOrganizationName("JulyJolly");
 
 #ifdef Q_OS_WIN
     // 显式声明 AppUserModelID：Windows 用它把"任务栏固定的快捷方式"和"正在运行的
