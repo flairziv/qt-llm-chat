@@ -33,6 +33,8 @@ set(SOURCES
     src/ui/SettingGeneralPage.cpp
     src/ui/TachieWindow.cpp
     src/ui/AssistantLoadingWidget.cpp
+    src/ui/ShimmerWidget.cpp
+    src/ui/ImageViewerDialog.cpp
 )
 
 set(HEADERS
@@ -59,6 +61,8 @@ set(HEADERS
     src/ui/ProviderSettingHelpers.h
     src/ui/TachieWindow.h
     src/ui/AssistantLoadingWidget.h
+    src/ui/ShimmerWidget.h
+    src/ui/ImageViewerDialog.h
 )
 
 set(UI_FILES
