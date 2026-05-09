@@ -165,6 +165,9 @@ void AppSettings::setOpenaiModel(const QString &model) { m_settings->setValue("O
 QString AppSettings::openaiReasoningEffort() const { return m_settings->value("OpenAI/reasoning_effort").toString(); }
 void AppSettings::setOpenaiReasoningEffort(const QString &effort) { m_settings->setValue("OpenAI/reasoning_effort", effort); scheduleProviderFlush(); }
 
+QString AppSettings::openaiImageApiMode() const { return m_settings->value("OpenAI/image_api_mode", "images").toString(); }
+void AppSettings::setOpenaiImageApiMode(const QString &mode) { m_settings->setValue("OpenAI/image_api_mode", mode); scheduleProviderFlush(); }
+
 // ============================================================
 // Gemini API（变更触发 providerSettingsChanged）
 // ============================================================

@@ -349,6 +349,7 @@ void MainWindow::createProvider()
             m_settings->openaiBaseUrl(),
             m_settings->openaiModel(),
             m_settings->openaiReasoningEffort(),
+            m_settings->openaiImageApiMode(),
             this
         );
     }

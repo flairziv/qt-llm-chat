@@ -47,6 +47,8 @@ public:
     void setOpenaiModel(const QString &model);
     QString openaiReasoningEffort() const;
     void setOpenaiReasoningEffort(const QString &effort);
+    QString openaiImageApiMode() const;          // "images" / "edits" / "chat" / "responses"
+    void setOpenaiImageApiMode(const QString &mode);
 
     // --- Gemini API ---
     QString geminiApiKey() const;
