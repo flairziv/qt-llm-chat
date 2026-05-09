@@ -109,7 +109,7 @@ public:
 
 signals:
     /**
-     * @brief Provider 相关配置（API Key / baseUrl / model / 推理强度）变更
+     * @brief Provider 相关配置（API Key / baseUrl / model / 推理强度 / 图像端点）变更
      *
      * MainWindow 收到后调 createProvider() 重建 LLMProvider。
      * 通过 200ms 防抖发出：用户在文本框里逐字输入 API Key 时只刷盘并通知一次。

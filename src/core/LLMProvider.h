@@ -128,8 +128,9 @@ signals:
     /**
      * @brief 图片生成请求已发出但响应未到（用于 UI 显示 shimmer 占位符）
      *
-     * 在 OpenAIProvider 的图片路径即将 POST 请求时发射；普通对话流式不发射。
-     * count 表示预计生成的图片数量。
+     * 在 OpenAIProvider 的三条图片路径（Responses / Images / Chat-image-model）
+     * 即将 POST 请求时发射；普通对话流式不发射。
+     * count 表示预计生成的图片数量（来自 LLMCHAT_OPENAI_IMAGE_N 环境变量，默认 1）。
      */
     void imageGenerationStarted(int count);
 
