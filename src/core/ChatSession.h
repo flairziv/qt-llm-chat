@@ -13,10 +13,13 @@
  * type        - 附件类型：Image（图片）、Document（PDF 等文档）、TextFile（文本文件）
  * fileName    - 原始文件名
  * mimeType    - MIME 类型，如 "image/png"、"application/pdf"
- * fileData    - 文件原始字节（用于图片/文档的 base64 编码发送）；持久化后从磁盘读回时也填这里
+ * fileData    - 文件原始字节（用于图片/文档的 base64 编码发送）
  * textContent - 文本文件的内容（仅 TextFile 类型使用）
- * localPath   - 图片/文档持久化到磁盘后的相对路径（attachments/<sid>/<uuid>.<ext>）；
- *               为空表示尚未落盘，序列化时仍走 base64
+ * relativePath - 持久化路径（v2 schema）：相对于数据根目录的路径，如
+ *                 "attachments/{sessionId}/{uuid}.png"。setting 后 toJson 只
+ *                 写路径不写 base64；fromJson 看到此字段时会从磁盘读 fileData。
+ *                 v1 schema 的 session 不带此字段，仍走 base64 路径——加载兼容、
+ *                 写回时通过 persistToDisk() 升级到 v2。
  */
 struct Attachment {
     enum Type { Image, Document, TextFile };
@@ -25,10 +28,21 @@ struct Attachment {
     QString mimeType;
     QByteArray fileData;
     QString textContent;
-    QString localPath;
+    QString relativePath;
 
     QJsonObject toJson() const;
-    static Attachment fromJson(const QJsonObject &obj);
+    static Attachment fromJson(const QJsonObject &obj, const QString &rootDataDir);
+
+    /**
+     * @brief 把 fileData 落盘到 <rootDataDir>/attachments/<sessionId>/<uuid>.<ext>，
+     *        并把 relativePath 设成相应相对路径。
+     *
+     * 仅对 Image / Document 类型生效（TextFile 走 inline content 不落盘）。
+     * 已经有 relativePath 的附件视为已迁移，跳过。fileData 为空时也跳过
+     * （没有内容可写）。写盘失败不抛错，relativePath 保持为空，下次 toJson
+     * 自动 fallback 到 base64 路径，旧行为兜底。
+     */
+    void persistToDisk(const QString &rootDataDir, const QString &sessionId);
 };
 
 /**
@@ -36,19 +50,19 @@ struct Attachment {
  *
  * role        - 消息角色："user"（用户发送）或 "assistant"（AI 回复）
  * content     - 消息文本内容
+ * reasoning   - assistant 的"思考链"原文（Claude thinking / OpenAI reasoning_content
+ *               / DeepSeek-style 等）。可为空字符串表示没有 reasoning 块。
  * attachments - 附件列表（图片、文件等）
  * timestamp   - 消息时间戳
  * favorite    - 是否收藏
- * reasoning   - 思考链（Claude thinking_delta / OpenAI delta.reasoning_content）；
- *               与 content 分开存储和持久化，便于 UI 折叠显示
  */
 struct ChatMessage {
     QString role;
     QString content;
+    QString reasoning;
     QList<Attachment> attachments;
     QDateTime timestamp;
     bool favorite = false;
-    QString reasoning;
 };
 
 /**
@@ -101,9 +115,19 @@ public:
     ChatMessage messageAt(int index) const;         // 获取指定索引的消息
     void addMessage(const ChatMessage &msg);
     void updateLastAssistantMessage(const QString &content);
+    void updateLastAssistantReasoning(const QString &reasoning);  // 把 reasoning 写到最后一条 assistant 消息
     void setMessageFavorite(int index, bool favorite);  // 切换指定消息的收藏状态
     void truncateFrom(int index);                   // 删除 index 及之后的所有消息
     void clearMessages();
+
+    /**
+     * @brief 把所有 message 的图片 / 文档附件落盘到 <rootDataDir>/attachments/<id>/...
+     *
+     * SessionManager::saveSession 在 toJson 之前调用此方法，让附件以文件路径
+     * 而不是 base64 的形式被序列化进 session JSON，避免 session JSON 体积爆炸。
+     * 已带 relativePath 的附件（v2 已迁移）跳过；fileData 为空的也跳过。
+     */
+    void persistAttachmentsToDisk(const QString &rootDataDir);
 
     // --- JSON 序列化 ---
 
@@ -116,27 +140,13 @@ public:
     /**
      * @brief 从 JSON 对象反序列化，恢复一个会话实例
      * @param obj   从 .json 文件读取的 JSON 对象
+     * @param rootDataDir 数据根目录（attachments 路径相对于此目录）
      * @param parent 父对象（Qt 对象树管理内存）
      * @return 恢复的 ChatSession 指针，如果 JSON 无效返回 nullptr
      */
-    static ChatSession* fromJson(const QJsonObject &obj, QObject *parent = nullptr);
-
-    /**
-     * @brief 把还没落盘的图片/文档附件写到 basePath/<sid>/<uuid>.<ext>，
-     *        并把路径写回 attachment.localPath。已经有 localPath 的跳过；TextFile 跳过。
-     *
-     * 由 SessionManager::saveSession 在 toJson 之前调用 —— 让 JSON 里图片
-     * 走 localPath 而不是 base64，避免 session 文件被附件膨胀到 MB 级别。
-     */
-    void persistAttachmentsToDisk(const QString &basePath);
-
-    /**
-     * @brief 反向：把 attachment.localPath 指向的文件读回 fileData。
-     *
-     * 由 SessionManager::loadAllSessions 在 fromJson 之后调用。读不到的文件
-     * 静默放空 fileData（气泡显示空图，不会崩）。
-     */
-    void loadAttachmentDataFromDisk(const QString &basePath);
+    static ChatSession* fromJson(const QJsonObject &obj,
+                                 const QString &rootDataDir,
+                                 QObject *parent = nullptr);
 
 signals:
     void messageAdded(const ChatMessage &msg);        // 新消息添加时发射

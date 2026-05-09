@@ -124,8 +124,8 @@ signals:
     void activeSessionChanged(ChatSession *session);  // 激活会话切换时发射（session 可能为 nullptr）
 
 private:
-    QString m_dataDir;                  // 会话文件存储目录（dataDir/sessions/）
-    QString m_attachmentsDir;           // 附件存储目录（dataDir/attachments/）
+    QString m_rootDataDir;              // 数据根目录（attachments 路径相对于此目录）
+    QString m_dataDir;                  // 会话文件存储目录（rootDataDir/sessions/）
     QList<ChatSession*> m_sessions;     // 所有会话的内存列表
     ChatSession *m_activeSession = nullptr;  // 当前激活的会话
 
