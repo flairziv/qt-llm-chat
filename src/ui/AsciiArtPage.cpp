@@ -36,9 +36,9 @@ AsciiArtPage::AsciiArtPage(QWidget *parent)
 {
     setupUI();
     setAcceptDrops(true);
-    // 主题切换时重新刷一次 ASCII 预览的底色 / 字色（dark 黑底荧光绿，
-    // light 浅灰底深绿，否则黑底在浅色主题下视觉割裂）
-    connect(eTheme, &ElaTheme::themeModeChanged, this, &AsciiArtPage::applyThemeStyles);
+
+    // 主题切换：刷新预览区样式（imagePreview / asciiPreview 在 dark/light 下使用不同配色）
+    connect(eTheme, &ElaTheme::themeModeChanged, this, [this]() { applyThemeStyles(); });
 }
 
 // ============================================================================
@@ -72,9 +72,6 @@ void AsciiArtPage::setupUI()
     m_imagePreview->setAlignment(Qt::AlignCenter);
     m_imagePreview->setMinimumSize(200, 200);
     m_imagePreview->setObjectName("asciiImagePreview");
-    m_imagePreview->setStyleSheet(
-        "QLabel { background: rgba(128,128,128,0.06); border: 2px dashed rgba(128,128,128,0.2); "
-        "border-radius: 8px; }");
     m_imagePreview->setText("Drag image here\nor click Select Image");
     leftLayout->addWidget(m_imagePreview);
 
@@ -84,6 +81,8 @@ void AsciiArtPage::setupUI()
     m_asciiPreview->setFrameShape(QFrame::NoFrame);
     m_asciiPreview->setObjectName("asciiTextPreview");
     m_asciiPreview->setLineWrapMode(QTextBrowser::NoWrap);
+
+    // 初次按当前主题应用样式（之后通过 themeModeChanged 信号刷新）
     applyThemeStyles();
 
     splitter->addWidget(leftPanel);
@@ -182,7 +181,7 @@ void AsciiArtPage::setupUI()
     // 复制到剪贴板
     connect(m_copyBtn, &ElaPushButton::clicked, this, [this]() {
         if (m_colorSwitch->getIsToggled()) {
-            // 彩色模式：复制富文本（HTML + 纯文本备份）
+            // 彩色模式：复制富文本
             QMimeData *mime = new QMimeData;
             mime->setHtml(m_currentHtml);
             mime->setText(m_currentAscii);
@@ -257,11 +256,13 @@ void AsciiArtPage::setupUI()
         painter.setFont(monoFont);
 
         if (color) {
-            // 彩色模式：逐字符按原图像素颜色绘制
+            // 彩色模式：逐字符绘制原图颜色
             int asciiH = m_sourceImage.height() * width / m_sourceImage.width() / 2;
             if (asciiH <= 0) asciiH = 1;
             QImage scaled = m_sourceImage.scaled(width, asciiH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
                                          .convertToFormat(QImage::Format_ARGB32);
+            const char *charset = detailed ? DETAILED_CHARSET : SIMPLE_CHARSET;
+            int charsetLen = static_cast<int>(strlen(charset));
 
             for (int y = 0; y < qMin(lines.size(), scaled.height()); ++y) {
                 const QString &line = lines[y];
@@ -273,7 +274,7 @@ void AsciiArtPage::setupUI()
                 }
             }
         } else {
-            // 灰度模式：纯绿色字体（与预览风格一致）
+            // 灰度模式：绿色字体
             painter.setPen(QColor(0, 255, 0));
             for (int y = 0; y < lines.size(); ++y) {
                 painter.drawText(8, 8 + (y + 1) * charH - fm.descent(), lines[y]);
@@ -291,23 +292,28 @@ void AsciiArtPage::setupUI()
 // ============================================================================
 
 /**
- * @brief 给 ASCII 预览区套主题相关样式
+ * @brief 根据当前 ElaTheme 主题刷新两个预览区的样式
  *
- * dark 主题用经典终端风（黑底荧光绿）；light 主题黑底太刺眼，改成
- * 浅灰底深绿，跟周围 ElaWindow 的浅色面板协调。
+ * - 图片占位区：在两种主题下都用半透明灰底（neutral，自然融入）
+ * - ASCII 文本区：保持"终端风"的深底亮字，但 dark 用纯黑底荧光绿，
+ *   light 用浅灰底深绿——避免 light 主题下大面积纯黑突兀。
  */
 void AsciiArtPage::applyThemeStyles()
 {
-    if (!m_asciiPreview) return;
     const bool isDark = (eTheme->getThemeMode() == ElaThemeType::Dark);
-    const QString bg = isDark ? QStringLiteral("rgba(0,0,0,0.85)")
-                              : QStringLiteral("rgba(220,220,220,0.85)");
-    const QString fg = isDark ? QStringLiteral("#00ff00")
-                              : QStringLiteral("#1a6f1a");
+
+    m_imagePreview->setStyleSheet(
+        "QLabel { background: rgba(128,128,128,0.06); border: 2px dashed rgba(128,128,128,0.2); "
+        "border-radius: 8px; }");
+
+    const QString asciiBg   = isDark ? "rgba(0,0,0,0.85)"  : "rgba(245,245,245,0.95)";
+    const QString asciiFg   = isDark ? "#00ff00"           : "#0a7a0a";
     m_asciiPreview->setStyleSheet(
-        QStringLiteral("QTextBrowser { background: %1; color: %2; "
-                       "font-family: Consolas, 'Courier New', monospace; font-size: 8px; "
-                       "border-radius: 8px; padding: 8px; }").arg(bg, fg));
+        QStringLiteral(
+            "QTextBrowser { background: %1; color: %2; "
+            "font-family: Consolas, 'Courier New', monospace; font-size: 8px; "
+            "border-radius: 8px; padding: 8px; }")
+            .arg(asciiBg, asciiFg));
 }
 
 /** @brief 加载图片并刷新预览 */
@@ -367,18 +373,18 @@ void AsciiArtPage::updatePreview()
     bool detailed = (m_charsetCombo->currentIndex() == 1);
     bool color = m_colorSwitch->getIsToggled();
 
-    // 总是生成纯文本版本（Copy 用得到）
+    // 总是生成纯文本版本
     m_currentAscii = convertToAscii(m_sourceImage, width, detailed);
 
     if (color) {
-        // 彩色模式：生成 HTML 并用 RichText 渲染
+        // 彩色模式：生成 HTML 并渲染
         m_currentHtml = convertToColorHtml(m_sourceImage, width, detailed);
         m_asciiPreview->setHtml(
             QStringLiteral("<pre style=\"font-family:Consolas,'Courier New',monospace; font-size:8px; "
                            "line-height:1.0; background:#111; margin:0;\">%1</pre>")
             .arg(m_currentHtml));
     } else {
-        // 灰度模式：纯文本（QSS 已设了绿色字体）
+        // 灰度模式：绿色纯文本
         m_currentHtml.clear();
         m_asciiPreview->setPlainText(m_currentAscii);
     }
