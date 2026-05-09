@@ -220,6 +220,11 @@ void MessageBubble::setFavorite(bool favorite)
         return;
     }
     m_favorite = favorite;
+    m_bubbleWidget->setProperty("favorite", favorite);
+    // 切换 dynamic property 后必须 unpolish/polish 才能让 QSS 的 [favorite="true"]
+    // selector 重新匹配；否则视觉上不会立刻变化。
+    m_bubbleWidget->style()->unpolish(m_bubbleWidget);
+    m_bubbleWidget->style()->polish(m_bubbleWidget);
     refreshRoleLabel();
 }
 

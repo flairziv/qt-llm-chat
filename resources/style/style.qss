@@ -72,6 +72,11 @@ QListWidget::item:hover {
     background-color: rgba(128, 128, 128, 0.10);
     border-radius: 12px;
 }
+/* 收藏状态：通过 dynamic property "favorite=true" 触发，避免内联 setStyleSheet
+   覆盖 #userBubble / #assistantBubble 的背景色规则。 */
+#userBubble[favorite="true"], #assistantBubble[favorite="true"] {
+    border: 2px solid #ffc107;
+}
 #userBubbleContent, #assistantBubbleContent {
     font-size: 14px;
 }
