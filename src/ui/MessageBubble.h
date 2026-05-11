@@ -1,7 +1,9 @@
 #pragma once
 
+#include <QHash>
 #include <QLabel>
 #include <QList>
+#include <QPixmap>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -57,6 +59,9 @@ signals:
     void deleteFromHereRequested(int index);
     void regenerateRequested(int index);    // 重新生成该 assistant 回复（仅 assistant 气泡触发）
 
+protected:
+    bool eventFilter(QObject *obj, QEvent *event) override;
+
 private slots:
     void onContextMenu(const QPoint &pos);
 
@@ -64,7 +69,7 @@ private:
     void setupUI();
     void rebuildAttachmentWidgets();
     void refreshRoleLabel();
-    QWidget *createAttachmentWidget(const Attachment &attachment);
+    QWidget *createAttachmentWidget(const Attachment &attachment, int idx);
     void buildReasoningSection();   // setupUI 时构造（assistant only）
     void updateReasoningUi();       // 根据 m_reasoning + collapse 状态刷新 header / body / 可见性
 
@@ -74,6 +79,11 @@ private:
     QString m_userName;
     QString m_assistantName;
     QList<Attachment> m_attachments;
+    // 图片附件解码后的原始 QPixmap 按附件索引缓存：
+    //   - 避免 rebuildAttachmentWidgets 反复 loadFromData 触发的 PNG/JPEG 解码
+    //   - eventFilter 弹大图也从这里直接取，省去二次解码
+    // 仅 Image 类型有缓存项；setAttachments 清空。
+    QHash<int, QPixmap> m_originalPixmapCache;
     int m_index;
     bool m_favorite;
 

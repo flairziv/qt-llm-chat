@@ -1,9 +1,12 @@
 #include "MessageBubble.h"
+#include "ImageViewerDialog.h"
 
 #include <QApplication>
 #include <QClipboard>
+#include <QEvent>
 #include <QHBoxLayout>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QPixmap>
 #include <QStyle>
 #include <QToolButton>
@@ -135,8 +138,8 @@ void MessageBubble::rebuildAttachmentWidgets()
         m_bubbleLayout->addWidget(m_reasoningContainer);
     }
 
-    for (const Attachment &attachment : m_attachments) {
-        if (QWidget *attachmentWidget = createAttachmentWidget(attachment)) {
+    for (int idx = 0; idx < m_attachments.size(); ++idx) {
+        if (QWidget *attachmentWidget = createAttachmentWidget(m_attachments.at(idx), idx)) {
             m_bubbleLayout->addWidget(attachmentWidget);
         }
     }
@@ -144,22 +147,39 @@ void MessageBubble::rebuildAttachmentWidgets()
     m_bubbleLayout->addWidget(m_contentLabel);
 }
 
-QWidget *MessageBubble::createAttachmentWidget(const Attachment &attachment)
+QWidget *MessageBubble::createAttachmentWidget(const Attachment &attachment, int idx)
 {
     if (attachment.type == Attachment::Image) {
         QLabel *imageLabel = new QLabel(m_bubbleWidget);
-        QPixmap pixmap;
-        pixmap.loadFromData(attachment.fileData);
-        if (!pixmap.isNull()) {
-            if (pixmap.width() > 400) {
-                pixmap = pixmap.scaledToWidth(400, Qt::SmoothTransformation);
+
+        // 命中缓存跳过解码；rebuildAttachmentWidgets 反复跑（reasoning / 字体调整）
+        // 时不再每次都重走一遍 PNG/JPEG decoder
+        QPixmap pixmap = m_originalPixmapCache.value(idx);
+        if (pixmap.isNull()) {
+            pixmap.loadFromData(attachment.fileData);
+            if (!pixmap.isNull()) {
+                m_originalPixmapCache.insert(idx, pixmap);
             }
-            imageLabel->setPixmap(pixmap);
+        }
+
+        if (!pixmap.isNull()) {
+            QPixmap display = pixmap;
+            if (display.width() > 400) {
+                display = display.scaledToWidth(400, Qt::SmoothTransformation);
+            }
+            imageLabel->setPixmap(display);
         } else {
             imageLabel->setText(attachmentLabelText(attachment));
         }
         imageLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
         imageLabel->setWordWrap(true);
+
+        // 点击弹大图：保存附件索引到属性，eventFilter 拦 LeftButton 释放后
+        // 用 m_originalPixmapCache[idx] 喂 ImageViewerDialog
+        imageLabel->setProperty("imgAttIdx", idx);
+        imageLabel->setCursor(Qt::PointingHandCursor);
+        imageLabel->setToolTip(tr("Click to view full size"));
+        imageLabel->installEventFilter(this);
         return imageLabel;
     }
 
@@ -193,6 +213,8 @@ void MessageBubble::setContent(const QString &content)
 void MessageBubble::setAttachments(const QList<Attachment> &attachments)
 {
     m_attachments = attachments;
+    // 附件被替换：旧索引指向的 pixmap 不再对应当前列表，整体丢弃
+    m_originalPixmapCache.clear();
     rebuildAttachmentWidgets();
     m_contentLabel->setVisible(!m_content.isEmpty());
     updateGeometry();
@@ -363,4 +385,51 @@ void MessageBubble::appendReasoning(const QString &token)
 {
     m_reasoning += token;
     updateReasoningUi();
+}
+
+/**
+ * @brief 拦截图片 QLabel 的左键点击 → 弹 ImageViewerDialog 看大图
+ *
+ * createAttachmentWidget 在每个图片 QLabel 上设了 "imgAttIdx" 属性
+ * 并 installEventFilter(this)。这里只处理 LeftButton release（避免和右键
+ * contextMenuEvent 冲突，也跳过中键 / 拖拽 / 双击之类）。
+ *
+ * 原图直接从 m_originalPixmapCache 取，避免重复 PNG/JPEG 解码；cache miss
+ * 时现解一次并塞回 cache，跟 createAttachmentWidget 走同一份缓存。
+ */
+bool MessageBubble::eventFilter(QObject *obj, QEvent *event)
+{
+    if (event->type() == QEvent::MouseButtonRelease) {
+        auto *me = static_cast<QMouseEvent *>(event);
+        if (me->button() != Qt::LeftButton) {
+            return QWidget::eventFilter(obj, event);
+        }
+        auto *label = qobject_cast<QLabel *>(obj);
+        if (!label) {
+            return QWidget::eventFilter(obj, event);
+        }
+        const QVariant prop = label->property("imgAttIdx");
+        if (!prop.isValid()) {
+            return QWidget::eventFilter(obj, event);
+        }
+        const int idx = prop.toInt();
+        if (idx < 0 || idx >= m_attachments.size()) {
+            return QWidget::eventFilter(obj, event);
+        }
+        const Attachment &att = m_attachments.at(idx);
+        QPixmap orig = m_originalPixmapCache.value(idx);
+        if (orig.isNull()) {
+            orig.loadFromData(att.fileData);
+            if (!orig.isNull()) {
+                m_originalPixmapCache.insert(idx, orig);
+            }
+        }
+        if (!orig.isNull()) {
+            // ImageViewerDialog 构造里设了 WA_DeleteOnClose，show 后自负盈亏
+            auto *viewer = new ImageViewerDialog(orig, this);
+            viewer->show();
+        }
+        return true;
+    }
+    return QWidget::eventFilter(obj, event);
 }
