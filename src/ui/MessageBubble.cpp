@@ -35,8 +35,10 @@ MessageBubble::MessageBubble(Role role, const QString &content,
                              const QString &assistantName,
                              int index,
                              bool favorite,
+                             const QDateTime &timestamp,
                              const QString &reasoning)
-    : MessageBubble(role, content, {}, parent, userName, assistantName, index, favorite, reasoning)
+    : MessageBubble(role, content, {}, parent, userName, assistantName,
+                    index, favorite, timestamp, reasoning)
 {
 }
 
@@ -47,6 +49,7 @@ MessageBubble::MessageBubble(Role role, const QString &content,
                              const QString &assistantName,
                              int index,
                              bool favorite,
+                             const QDateTime &timestamp,
                              const QString &reasoning)
     : QWidget(parent)
     , m_role(role)
@@ -55,6 +58,7 @@ MessageBubble::MessageBubble(Role role, const QString &content,
     , m_userName(userName)
     , m_assistantName(assistantName)
     , m_attachments(attachments)
+    , m_timestamp(timestamp.isValid() ? timestamp : QDateTime::currentDateTime())
     , m_index(index)
     , m_favorite(favorite)
 {
@@ -74,6 +78,15 @@ void MessageBubble::setupUI()
     roleFont.setPointSize(10);
     m_roleLabel->setFont(roleFont);
     refreshRoleLabel();
+
+    m_timeLabel = new QLabel(this);
+    m_timeLabel->setObjectName("timeLabel");
+    QFont timeFont = m_timeLabel->font();
+    timeFont.setPointSize(9);
+    m_timeLabel->setFont(timeFont);
+    // 半透明灰色：dark / light 主题下都能看见，省去 ElaTheme 监听 + 主题切换重绘
+    m_timeLabel->setStyleSheet(QStringLiteral("color: rgba(128,128,128,0.85);"));
+    updateTimestampDisplay();
 
     m_bubbleWidget = new QWidget(this);
     m_bubbleWidget->setObjectName(m_role == User ? "userBubble" : "assistantBubble");
@@ -99,19 +112,32 @@ void MessageBubble::setupUI()
     rebuildAttachmentWidgets();
     updateReasoningUi();
 
+    // 角色行：QHBoxLayout 把 m_roleLabel + m_timeLabel 排到一起，stretch 控制对齐
+    QHBoxLayout *roleRow = new QHBoxLayout;
+    roleRow->setContentsMargins(0, 0, 0, 0);
+    roleRow->setSpacing(6);
+
     if (m_role == User) {
-        m_roleLabel->setAlignment(Qt::AlignRight);
+        // User: ...stretch | time | role
+        roleRow->addStretch();
+        roleRow->addWidget(m_timeLabel);
+        roleRow->addWidget(m_roleLabel);
+
         QHBoxLayout *bubbleRow = new QHBoxLayout;
         bubbleRow->addStretch();
         bubbleRow->addWidget(m_bubbleWidget);
-        outerLayout->addWidget(m_roleLabel);
+        outerLayout->addLayout(roleRow);
         outerLayout->addLayout(bubbleRow);
     } else {
-        m_roleLabel->setAlignment(Qt::AlignLeft);
+        // Assistant: role | time | stretch...
+        roleRow->addWidget(m_roleLabel);
+        roleRow->addWidget(m_timeLabel);
+        roleRow->addStretch();
+
         QHBoxLayout *bubbleRow = new QHBoxLayout;
         bubbleRow->addWidget(m_bubbleWidget);
         bubbleRow->addStretch();
-        outerLayout->addWidget(m_roleLabel);
+        outerLayout->addLayout(roleRow);
         outerLayout->addLayout(bubbleRow);
     }
 
@@ -432,4 +458,33 @@ bool MessageBubble::eventFilter(QObject *obj, QEvent *event)
         return true;
     }
     return QWidget::eventFilter(obj, event);
+}
+
+// ============================================================================
+// 时间戳显示
+// ============================================================================
+
+/** @brief 根据 m_timestamp 更新 m_timeLabel 文本 + tooltip */
+void MessageBubble::updateTimestampDisplay()
+{
+    if (!m_timestamp.isValid()) {
+        m_timeLabel->hide();
+        return;
+    }
+    m_timeLabel->setText(relativeTime(m_timestamp));
+    // hover 显示绝对时间方便核对：相对时间易看错（"5h ago" 是今天还是昨天）
+    m_timeLabel->setToolTip(m_timestamp.toString("yyyy-MM-dd hh:mm:ss"));
+}
+
+/** @brief 把绝对时间转为 "just now" / "5m ago" / "2h ago" / "yesterday HH:mm" / "MM-dd HH:mm" / "yyyy-MM-dd" */
+QString MessageBubble::relativeTime(const QDateTime &dt)
+{
+    const QDateTime now = QDateTime::currentDateTime();
+    const qint64 secs = dt.secsTo(now);
+    if (secs < 60) return QStringLiteral("just now");
+    if (secs < 3600) return QStringLiteral("%1m ago").arg(secs / 60);
+    if (secs < 86400) return QStringLiteral("%1h ago").arg(secs / 3600);
+    if (secs < 172800) return QStringLiteral("yesterday ") + dt.toString("HH:mm");
+    if (dt.date().year() == now.date().year()) return dt.toString("MM-dd HH:mm");
+    return dt.toString("yyyy-MM-dd");
 }

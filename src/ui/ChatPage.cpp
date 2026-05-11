@@ -327,6 +327,7 @@ void ChatPage::onSendClicked()
 void ChatPage::addMessageBubble(const QString &role, const QString &content,
                                 const QList<Attachment> &attachments,
                                 int index, bool favorite,
+                                const QDateTime &timestamp,
                                 const QString &reasoning)
 {
     const int realIndex = (index >= 0) ? index : m_bubbles.size();
@@ -335,7 +336,7 @@ void ChatPage::addMessageBubble(const QString &role, const QString &content,
 
     auto *bubble = new MessageBubble(bubbleRole, content, attachments, m_messageContainer,
                                      m_userName, m_assistantName,
-                                     realIndex, favorite, reasoning);
+                                     realIndex, favorite, timestamp, reasoning);
 
     connect(bubble, &MessageBubble::favoriteToggleRequested,
             this, &ChatPage::messageFavoriteToggleRequested);
@@ -411,7 +412,8 @@ void ChatPage::loadMessages(const QList<ChatMessage> &messages)
     clearMessages();
     for (int i = 0; i < messages.size(); ++i) {
         const ChatMessage &msg = messages.at(i);
-        addMessageBubble(msg.role, msg.content, msg.attachments, i, msg.favorite, msg.reasoning);
+        addMessageBubble(msg.role, msg.content, msg.attachments, i, msg.favorite,
+                         msg.timestamp, msg.reasoning);
     }
 }
 

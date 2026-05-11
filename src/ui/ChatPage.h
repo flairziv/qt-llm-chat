@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QDateTime>
 #include <QHBoxLayout>
 #include <QList>
 #include <QScrollArea>
@@ -25,6 +26,7 @@ public:
     void addMessageBubble(const QString &role, const QString &content,
                           const QList<Attachment> &attachments = {},
                           int index = -1, bool favorite = false,
+                          const QDateTime &timestamp = QDateTime(),
                           const QString &reasoning = QString());
     void appendToLastBubble(const QString &token);
     void appendReasoningToLastBubble(const QString &token);   // reasoning 流式增量写入

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QDateTime>
 #include <QHash>
 #include <QLabel>
 #include <QList>
@@ -23,6 +24,7 @@ public:
                            const QString &assistantName = "Assistant",
                            int index = -1,
                            bool favorite = false,
+                           const QDateTime &timestamp = QDateTime(),
                            const QString &reasoning = QString());
 
     explicit MessageBubble(Role role, const QString &content,
@@ -32,6 +34,7 @@ public:
                            const QString &assistantName = "Assistant",
                            int index = -1,
                            bool favorite = false,
+                           const QDateTime &timestamp = QDateTime(),
                            const QString &reasoning = QString());
 
     void appendText(const QString &text);
@@ -72,6 +75,8 @@ private:
     QWidget *createAttachmentWidget(const Attachment &attachment, int idx);
     void buildReasoningSection();   // setupUI 时构造（assistant only）
     void updateReasoningUi();       // 根据 m_reasoning + collapse 状态刷新 header / body / 可见性
+    void updateTimestampDisplay();
+    static QString relativeTime(const QDateTime &dt);
 
     Role m_role;
     QString m_content;
@@ -84,10 +89,12 @@ private:
     //   - eventFilter 弹大图也从这里直接取，省去二次解码
     // 仅 Image 类型有缓存项；setAttachments 清空。
     QHash<int, QPixmap> m_originalPixmapCache;
+    QDateTime m_timestamp;
     int m_index;
     bool m_favorite;
 
     QLabel *m_roleLabel = nullptr;
+    QLabel *m_timeLabel = nullptr;
     QLabel *m_contentLabel = nullptr;
     QWidget *m_bubbleWidget = nullptr;
     QVBoxLayout *m_bubbleLayout = nullptr;
