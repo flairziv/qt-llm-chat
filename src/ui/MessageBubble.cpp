@@ -4,10 +4,15 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QEvent>
+#include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QMenu>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QPixmap>
+#include <QStandardPaths>
 #include <QStyle>
 #include <QToolButton>
 
@@ -311,6 +316,30 @@ void MessageBubble::onContextMenu(const QPoint &pos)
     if (m_role == Assistant) {
         regenAction = menu.addAction(tr("Regenerate from here"));
     }
+
+    // 图片附件：单图直接 "Save Image As..."；多图弹子菜单，每条对应一张图
+    QList<int> imageIndices;
+    for (int i = 0; i < m_attachments.size(); ++i) {
+        if (m_attachments.at(i).type == Attachment::Image) imageIndices.append(i);
+    }
+    QAction *saveSingleAction = nullptr;
+    QHash<QAction *, int> saveSubActions;
+    if (!imageIndices.isEmpty()) {
+        menu.addSeparator();
+        if (imageIndices.size() == 1) {
+            saveSingleAction = menu.addAction(tr("Save Image As..."));
+        } else {
+            QMenu *saveMenu = menu.addMenu(tr("Save Image As..."));
+            for (int idx : imageIndices) {
+                const Attachment &att = m_attachments.at(idx);
+                const QString label = att.fileName.isEmpty()
+                    ? tr("Image %1").arg(idx + 1)
+                    : att.fileName;
+                saveSubActions.insert(saveMenu->addAction(label), idx);
+            }
+        }
+    }
+
     menu.addSeparator();
     QAction *deleteAction = menu.addAction(tr("Delete from here"));
 
@@ -327,6 +356,39 @@ void MessageBubble::onContextMenu(const QPoint &pos)
         emit regenerateRequested(m_index);
     } else if (selected == deleteAction) {
         emit deleteFromHereRequested(m_index);
+    } else if ((saveSingleAction && selected == saveSingleAction)
+               || saveSubActions.contains(selected)) {
+        // 直接落盘 att.fileData：附件存的就是原始编码字节（PNG/JPEG），
+        // 不走 QImage 解码 + 重编码，避免无谓的画质损失和耗时
+        const int targetIdx = saveSubActions.contains(selected)
+            ? saveSubActions.value(selected)
+            : imageIndices.first();
+        if (targetIdx >= 0 && targetIdx < m_attachments.size()) {
+            const Attachment &att = m_attachments.at(targetIdx);
+            const QString defaultName = att.fileName.isEmpty()
+                ? QStringLiteral("image.png")
+                : att.fileName;
+            const QString defaultDir = QStandardPaths::writableLocation(
+                QStandardPaths::PicturesLocation);
+            const QString suffix = QFileInfo(defaultName).suffix().toLower();
+            // 过滤器顺序匹配实际文件后缀；用户拨过来的图大多是 PNG，所以默认放第一
+            QString filter;
+            if (suffix == "jpg" || suffix == "jpeg") {
+                filter = tr("JPEG Image (*.jpg *.jpeg);;PNG Image (*.png);;All Files (*)");
+            } else {
+                filter = tr("PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;All Files (*)");
+            }
+            const QString path = QFileDialog::getSaveFileName(this, tr("Save Image As"),
+                defaultDir + "/" + defaultName, filter);
+            if (path.isEmpty()) return;
+            QFile out(path);
+            if (out.open(QIODevice::WriteOnly)) {
+                out.write(att.fileData);
+            } else {
+                QMessageBox::warning(this, tr("Save Image"),
+                    tr("Failed to write to:\n%1").arg(path));
+            }
+        }
     }
 }
 
