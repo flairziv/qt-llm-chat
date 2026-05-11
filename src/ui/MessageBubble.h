@@ -7,6 +7,8 @@
 
 #include "core/ChatSession.h"
 
+class QToolButton;
+
 class MessageBubble : public QWidget
 {
     Q_OBJECT
@@ -18,7 +20,8 @@ public:
                            const QString &userName = "You",
                            const QString &assistantName = "Assistant",
                            int index = -1,
-                           bool favorite = false);
+                           bool favorite = false,
+                           const QString &reasoning = QString());
 
     explicit MessageBubble(Role role, const QString &content,
                            const QList<Attachment> &attachments,
@@ -26,7 +29,8 @@ public:
                            const QString &userName = "You",
                            const QString &assistantName = "Assistant",
                            int index = -1,
-                           bool favorite = false);
+                           bool favorite = false,
+                           const QString &reasoning = QString());
 
     void appendText(const QString &text);
     void setContent(const QString &content);
@@ -39,6 +43,14 @@ public:
     void setMessageIndex(int index);
     bool isFavorite() const;
     void setFavorite(bool favorite);
+
+    // ===== Reasoning（思考链）折叠区块 =====
+    /** @brief 一次性把 reasoning 全文写入气泡（loadMessages 路径用） */
+    void setReasoning(const QString &reasoning);
+    /** @brief 流式 token 增量追加 reasoning（onReasoningTokenReceived 路径用） */
+    void appendReasoning(const QString &token);
+    /** @brief 当前 reasoning 文本（用于持久化 / 测试） */
+    QString reasoning() const { return m_reasoning; }
 
 signals:
     void favoriteToggleRequested(int index);
@@ -53,9 +65,12 @@ private:
     void rebuildAttachmentWidgets();
     void refreshRoleLabel();
     QWidget *createAttachmentWidget(const Attachment &attachment);
+    void buildReasoningSection();   // setupUI 时构造（assistant only）
+    void updateReasoningUi();       // 根据 m_reasoning + collapse 状态刷新 header / body / 可见性
 
     Role m_role;
     QString m_content;
+    QString m_reasoning;
     QString m_userName;
     QString m_assistantName;
     QList<Attachment> m_attachments;
@@ -66,4 +81,10 @@ private:
     QLabel *m_contentLabel = nullptr;
     QWidget *m_bubbleWidget = nullptr;
     QVBoxLayout *m_bubbleLayout = nullptr;
+
+    // Reasoning 折叠区块（仅 Assistant 角色非空时可见）
+    QWidget *m_reasoningContainer = nullptr;
+    QToolButton *m_reasoningHeader = nullptr;
+    QLabel *m_reasoningBody = nullptr;
+    bool m_reasoningCollapsed = true;   // 默认折叠：长 thinking 块不抢占视觉
 };

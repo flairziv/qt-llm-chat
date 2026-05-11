@@ -749,14 +749,19 @@ void MainWindow::flushPendingBubbleText()
 }
 
 /**
- * @brief 收到 reasoning（思考链）增量，累积到 m_reasoningBuffer
+ * @brief 收到 reasoning（思考链）增量
  *
- * Reasoning 不写入气泡正文（避免污染朗读 / 显示），
- * 仅在 onResponseFinished 时随 ChatMessage 一起持久化。
+ * 两件事：
+ *   1. 累积到 m_reasoningBuffer，onResponseFinished 时随 ChatMessage 一起持久化
+ *   2. 实时推到最后一个 assistant 气泡的折叠区块里，让用户可以一边看 thinking
+ *      展开一边等正文（默认折叠，需点击展开）
+ *
+ * 不写入气泡**正文** —— 避免污染朗读 / token-flush 路径。
  */
 void MainWindow::onReasoningTokenReceived(const QString &token)
 {
     m_reasoningBuffer += token;
+    m_chatPage->appendReasoningToLastBubble(token);
 }
 
 /**

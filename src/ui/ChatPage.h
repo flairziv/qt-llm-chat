@@ -24,8 +24,10 @@ public:
 
     void addMessageBubble(const QString &role, const QString &content,
                           const QList<Attachment> &attachments = {},
-                          int index = -1, bool favorite = false);
+                          int index = -1, bool favorite = false,
+                          const QString &reasoning = QString());
     void appendToLastBubble(const QString &token);
+    void appendReasoningToLastBubble(const QString &token);   // reasoning 流式增量写入
     void replaceLastBubbleContent(const QString &text);
     void removeLastBubble();                  // 删除最末一条气泡（用于 abort 后清理空 assistant 气泡）
     void clearMessages();

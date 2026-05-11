@@ -5,6 +5,8 @@
 #include <QHBoxLayout>
 #include <QMenu>
 #include <QPixmap>
+#include <QStyle>
+#include <QToolButton>
 
 namespace {
 
@@ -29,8 +31,9 @@ MessageBubble::MessageBubble(Role role, const QString &content,
                              const QString &userName,
                              const QString &assistantName,
                              int index,
-                             bool favorite)
-    : MessageBubble(role, content, {}, parent, userName, assistantName, index, favorite)
+                             bool favorite,
+                             const QString &reasoning)
+    : MessageBubble(role, content, {}, parent, userName, assistantName, index, favorite, reasoning)
 {
 }
 
@@ -40,10 +43,12 @@ MessageBubble::MessageBubble(Role role, const QString &content,
                              const QString &userName,
                              const QString &assistantName,
                              int index,
-                             bool favorite)
+                             bool favorite,
+                             const QString &reasoning)
     : QWidget(parent)
     , m_role(role)
     , m_content(content)
+    , m_reasoning(reasoning)
     , m_userName(userName)
     , m_assistantName(assistantName)
     , m_attachments(attachments)
@@ -83,7 +88,13 @@ void MessageBubble::setupUI()
     m_contentLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
     m_contentLabel->setVisible(!m_content.isEmpty());
 
+    // Reasoning 折叠区块仅 Assistant 角色构造；rebuildAttachmentWidgets 会把它放在 layout 顶部
+    if (m_role == Assistant) {
+        buildReasoningSection();
+    }
+
     rebuildAttachmentWidgets();
+    updateReasoningUi();
 
     if (m_role == User) {
         m_roleLabel->setAlignment(Qt::AlignRight);
@@ -110,10 +121,18 @@ void MessageBubble::rebuildAttachmentWidgets()
 {
     while (m_bubbleLayout->count() > 0) {
         QLayoutItem *item = m_bubbleLayout->takeAt(0);
-        if (item->widget()) {
-            item->widget()->deleteLater();
+        QWidget *w = item->widget();
+        // m_reasoningContainer 是稳定子 widget（仅 Assistant 角色一次性构造），
+        // 不能 deleteLater——下一次 rebuild 还要复用。其他附件 widget 才是临时的。
+        if (w && w != m_reasoningContainer) {
+            w->deleteLater();
         }
         delete item;
+    }
+
+    // Reasoning 折叠区块永远放在最上方，让用户先看到 thinking 标题再看附件 / 正文
+    if (m_reasoningContainer) {
+        m_bubbleLayout->addWidget(m_reasoningContainer);
     }
 
     for (const Attachment &attachment : m_attachments) {
@@ -261,4 +280,87 @@ void MessageBubble::onContextMenu(const QPoint &pos)
     } else if (selected == deleteAction) {
         emit deleteFromHereRequested(m_index);
     }
+}
+
+// ============================================================================
+// Reasoning（思考链）折叠区块
+// ============================================================================
+
+/**
+ * @brief 构造 reasoning 容器（仅 Assistant 角色一次性调用）
+ *
+ * 容器布局：
+ *   [💭 Thinking ▶/▼]   头部按钮：QToolButton autoRaise，点击切换 collapsed
+ *   [reasoning body]    QLabel 显示文本，italic + 半透明背景，collapsed 时隐藏
+ *
+ * 容器永远存在于 m_bubbleLayout 顶部（rebuildAttachmentWidgets 每次重新插入），
+ * 但若 m_reasoning 为空整体 hide()，看起来像没有这个区块。
+ */
+void MessageBubble::buildReasoningSection()
+{
+    m_reasoningContainer = new QWidget(m_bubbleWidget);
+    m_reasoningContainer->setObjectName("reasoningContainer");
+    QVBoxLayout *layout = new QVBoxLayout(m_reasoningContainer);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(4);
+
+    m_reasoningHeader = new QToolButton(m_reasoningContainer);
+    m_reasoningHeader->setAutoRaise(true);
+    m_reasoningHeader->setCursor(Qt::PointingHandCursor);
+    m_reasoningHeader->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    m_reasoningHeader->setStyleSheet(
+        QStringLiteral("QToolButton { padding: 2px 6px; color: rgba(128,128,128,0.85); "
+                       "font-size: 12px; border: 0; }"
+                       "QToolButton:hover { color: #10a37f; }"));
+    connect(m_reasoningHeader, &QToolButton::clicked, this, [this]() {
+        m_reasoningCollapsed = !m_reasoningCollapsed;
+        updateReasoningUi();
+    });
+
+    m_reasoningBody = new QLabel(m_reasoningContainer);
+    m_reasoningBody->setWordWrap(true);
+    m_reasoningBody->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    m_reasoningBody->setContextMenuPolicy(Qt::NoContextMenu);
+    m_reasoningBody->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
+    m_reasoningBody->setStyleSheet(
+        QStringLiteral("QLabel { color: rgba(128,128,128,0.95); font-style: italic; "
+                       "font-size: 12px; padding: 6px 10px; "
+                       "background: rgba(128,128,128,0.08); border-radius: 6px; }"));
+
+    layout->addWidget(m_reasoningHeader, 0, Qt::AlignLeft);
+    layout->addWidget(m_reasoningBody);
+}
+
+/**
+ * @brief 根据 m_reasoning + m_reasoningCollapsed 刷新头部箭头、body 可见性、容器整体可见性
+ */
+void MessageBubble::updateReasoningUi()
+{
+    if (!m_reasoningContainer) return;
+    const bool hasReasoning = !m_reasoning.isEmpty();
+    m_reasoningContainer->setVisible(hasReasoning);
+    if (!hasReasoning) return;
+
+    // ▶ U+25B6 / ▼ U+25BC
+    const QString arrow = m_reasoningCollapsed
+        ? QStringLiteral("\xe2\x96\xb6")
+        : QStringLiteral("\xe2\x96\xbc");
+    // 💭 U+1F4AD
+    m_reasoningHeader->setText(
+        QStringLiteral("\xf0\x9f\x92\xad Thinking %1").arg(arrow));
+
+    m_reasoningBody->setText(m_reasoning);
+    m_reasoningBody->setVisible(!m_reasoningCollapsed);
+}
+
+void MessageBubble::setReasoning(const QString &reasoning)
+{
+    m_reasoning = reasoning;
+    updateReasoningUi();
+}
+
+void MessageBubble::appendReasoning(const QString &token)
+{
+    m_reasoning += token;
+    updateReasoningUi();
 }
