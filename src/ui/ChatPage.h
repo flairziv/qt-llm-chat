@@ -31,6 +31,10 @@ public:
     void appendToLastBubble(const QString &token);
     void appendReasoningToLastBubble(const QString &token);   // reasoning 流式增量写入
     void replaceLastBubbleContent(const QString &text);
+    // 图片生成占位符（ShimmerWidget）：响应完成 / 出错任一路径都必须 clear，
+    // MainWindow::onResponseFinished / onProviderError / abortStreamingAndSavePartial 已覆盖
+    void addImagePlaceholderToLastBubble(int count = 1);
+    void clearImagePlaceholdersInLastBubble();
     void removeLastBubble();                  // 删除最末一条气泡（用于 abort 后清理空 assistant 气泡）
     void clearMessages();
     void loadMessages(const QList<ChatMessage> &messages);

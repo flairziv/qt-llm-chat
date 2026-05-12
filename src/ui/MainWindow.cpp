@@ -765,19 +765,21 @@ void MainWindow::onReasoningTokenReceived(const QString &token)
 }
 
 /**
- * @brief Provider 开始生成图像 → 切状态文字
+ * @brief Provider 开始生成图像 → 切状态文字 + 插入占位符
  *
  * OpenAI /v1/responses + image / /v1/images/generations 这类请求耗时较长且
  * 没有逐 token 文本输出，沿用 "Thinking..." 会让用户以为卡死。Provider 在
- * 触发图像生成时通过 imageGenerationStarted(count) 通知；这里把状态文字切
- * 成 "Generating image..."，并把 m_firstTokenSeen 置为 true 防止后续可能的
- * 文本 token 把状态再翻回 "Generating..."。
+ * 触发图像生成时通过 imageGenerationStarted(count) 通知；这里：
+ *   1. 状态文字切成 "Generating image..."
+ *   2. m_firstTokenSeen 置 true，防止后续可能的文本 token 把状态翻回 "Generating..."
+ *   3. 给当前 assistant 气泡塞 count 个 ShimmerWidget 占位符，让用户看到"正在画"
+ *      的视觉反馈；onResponseFinished / onProviderError 会清掉它们
  */
 void MainWindow::onImageGenerationStarted(int count)
 {
-    Q_UNUSED(count);
     m_firstTokenSeen = true;
     m_chatPage->setStatusText("Generating image...");
+    m_chatPage->addImagePlaceholderToLastBubble(qMax(1, count));
 }
 
 /**
@@ -793,6 +795,11 @@ void MainWindow::onResponseFinished(const QString &fullResponse)
     m_chatPage->setInputEnabled(true);
     m_chatPage->setLoading(false);
     m_chatPage->setStatusText("");
+
+    // 图片生成期间挂在气泡上的 ShimmerWidget 占位符必须收掉，否则会一直停留
+    // 在 "正在画" 状态。即便本轮没启用图像生成，clearImagePlaceholdersInLastBubble
+    // 在空列表上是 no-op，调用代价可忽略。
+    m_chatPage->clearImagePlaceholdersInLastBubble();
 
     // 把 flush 队列里残留的 token 立刻喂掉，避免被随后的 replaceLastBubbleContent
     // 覆盖（仅在立绘启用时会替换内容；但停定时器是任何情况下都该做的清理）
@@ -874,6 +881,9 @@ void MainWindow::onProviderError(const QString &error)
     m_isStreaming = false;
     m_chatPage->setInputEnabled(true);
     m_chatPage->setLoading(false);
+
+    // 图片生成中途出错也要把占位符收掉，否则会卡在"正在画"
+    m_chatPage->clearImagePlaceholdersInLastBubble();
 
     // 出错前已收到的 token 先落到气泡里，让用户看到 partial reply
     if (m_streamFlushTimer) m_streamFlushTimer->stop();

@@ -372,6 +372,21 @@ void ChatPage::appendReasoningToLastBubble(const QString &token)
     scrollToBottom();
 }
 
+void ChatPage::addImagePlaceholderToLastBubble(int count)
+{
+    if (m_bubbles.isEmpty()) return;
+    for (int i = 0; i < qMax(1, count); ++i) {
+        m_bubbles.last()->addImagePlaceholder();
+    }
+    scrollToBottom();
+}
+
+void ChatPage::clearImagePlaceholdersInLastBubble()
+{
+    if (m_bubbles.isEmpty()) return;
+    m_bubbles.last()->clearImagePlaceholders();
+}
+
 void ChatPage::replaceLastBubbleContent(const QString &text)
 {
     if (m_bubbles.isEmpty()) {

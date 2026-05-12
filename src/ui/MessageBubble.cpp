@@ -1,5 +1,6 @@
 #include "MessageBubble.h"
 #include "ImageViewerDialog.h"
+#include "ShimmerWidget.h"
 
 #include <QApplication>
 #include <QClipboard>
@@ -163,6 +164,9 @@ void MessageBubble::rebuildAttachmentWidgets()
         }
         delete item;
     }
+
+    // 占位符随 layout 一起 deleteLater，主动 clear 指针列表避免悬空
+    m_placeholders.clear();
 
     // Reasoning 折叠区块永远放在最上方，让用户先看到 thinking 标题再看附件 / 正文
     if (m_reasoningContainer) {
@@ -549,4 +553,44 @@ QString MessageBubble::relativeTime(const QDateTime &dt)
     if (secs < 172800) return QStringLiteral("yesterday ") + dt.toString("HH:mm");
     if (dt.date().year() == now.date().year()) return dt.toString("MM-dd HH:mm");
     return dt.toString("yyyy-MM-dd");
+}
+
+// ============================================================================
+// 图片生成占位符（ShimmerWidget）
+// ============================================================================
+//
+// - 触发：Provider 抛 imageGenerationStarted(count) →
+//         MainWindow::onImageGenerationStarted → ChatPage::addImagePlaceholderToLastBubble
+// - 插入位置：永远在 m_contentLabel 之前（reasoning / 已有 attachment 之后）
+//   同一轮生成多张图时占位符顺次堆叠
+// - 必须在 responseFinished / error / abort 任一路径手动 clear，否则会残留。
+//   setAttachments 走 rebuildAttachmentWidgets 也会顺便清掉，是安全网。
+
+void MessageBubble::addImagePlaceholder()
+{
+    auto *placeholder = new ShimmerWidget(m_bubbleWidget);
+    placeholder->setObjectName("imagePlaceholder");
+    placeholder->setFixedSize(200, 200);
+
+    int insertPos = m_bubbleLayout->indexOf(m_contentLabel);
+    if (insertPos < 0) insertPos = m_bubbleLayout->count();
+    m_bubbleLayout->insertWidget(insertPos, placeholder);
+    m_placeholders.append(placeholder);
+}
+
+void MessageBubble::clearImagePlaceholders()
+{
+    for (ShimmerWidget *p : m_placeholders) {
+        if (p) {
+            m_bubbleLayout->removeWidget(p);
+            p->hide();
+            p->deleteLater();
+        }
+    }
+    m_placeholders.clear();
+}
+
+bool MessageBubble::hasImagePlaceholder() const
+{
+    return !m_placeholders.isEmpty();
 }

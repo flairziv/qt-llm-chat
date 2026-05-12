@@ -11,6 +11,7 @@
 #include "core/ChatSession.h"
 
 class QToolButton;
+class ShimmerWidget;
 
 class MessageBubble : public QWidget
 {
@@ -56,6 +57,14 @@ public:
     void appendReasoning(const QString &token);
     /** @brief 当前 reasoning 文本（用于持久化 / 测试） */
     QString reasoning() const { return m_reasoning; }
+
+    // ===== 图片生成占位符 =====
+    /** @brief 在气泡里插入一个 ShimmerWidget 占位符（用于图片生成等待期） */
+    void addImagePlaceholder();
+    /** @brief 移除所有占位符（响应完成 / 出错 / 中止时调用） */
+    void clearImagePlaceholders();
+    /** @brief 是否含有图片占位符 */
+    bool hasImagePlaceholder() const;
 
 signals:
     void favoriteToggleRequested(int index);
@@ -104,4 +113,8 @@ private:
     QToolButton *m_reasoningHeader = nullptr;
     QLabel *m_reasoningBody = nullptr;
     bool m_reasoningCollapsed = true;   // 默认折叠：长 thinking 块不抢占视觉
+
+    // 图片生成等待期的占位符。rebuildAttachmentWidgets 把 layout 清光时
+    // 这些指针随之 deleteLater，列表必须紧跟着 clear() 避免悬空。
+    QList<ShimmerWidget *> m_placeholders;
 };
