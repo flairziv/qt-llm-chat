@@ -44,6 +44,10 @@ public:
     void setStatusText(const QString &text);
     void setLoading(bool loading);            // 控制 AssistantLoadingWidget 的眨眼动画
     void scrollToBottom();
+    // 强制滚到底部并重启自动跟随。仅用于"用户主动想看到最新"的场景：
+    // 发送消息、切换会话、加载历史。不要在流式 token 路径里调用——那里要尊重
+    // m_autoScrollEnabled，让滚上去看历史的用户不被打断。
+    void scrollToBottomForce();
 
     void addSession(class ChatSession *session);
     void removeSession(const QString &id);

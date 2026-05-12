@@ -373,7 +373,8 @@ void ChatPage::addMessageBubble(const QString &role, const QString &content,
     }
     m_messageLayout->insertWidget(insertIndex, bubble);
     m_bubbles.append(bubble);
-    scrollToBottom();
+    // 新气泡 = 用户主动场景（发送 / 加载会话），强制滚到底部并重启跟随
+    scrollToBottomForce();
 }
 
 void ChatPage::appendToLastBubble(const QString &token)
@@ -503,6 +504,15 @@ void ChatPage::setLoading(bool loading)
 
 void ChatPage::scrollToBottom()
 {
+    QScrollBar *bar = m_scrollArea->verticalScrollBar();
+    bar->setValue(bar->maximum());
+}
+
+void ChatPage::scrollToBottomForce()
+{
+    // 强制滚到底部并重启自动跟随。用户主动场景（发送消息、切换会话、加载历史）走这里；
+    // 流式 token 不要走，否则用户向上滚看历史会被新 token 拉回来。
+    m_autoScrollEnabled = true;
     QScrollBar *bar = m_scrollArea->verticalScrollBar();
     bar->setValue(bar->maximum());
 }
