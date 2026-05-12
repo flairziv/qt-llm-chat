@@ -72,14 +72,20 @@ signals:
 private slots:
     void onSendClicked();
     void onAttachClicked();
+    // Ctrl+wheel / Ctrl+= / Ctrl+- / Ctrl+0 触发，按步进 2px 调整正文字号
+    void zoomIn();
+    void zoomOut();
+    void zoomReset();
 
 private:
     void setupUI();
+    void applyFontSizeToAllBubbles();
     bool eventFilter(QObject *obj, QEvent *event) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragLeaveEvent(QDragLeaveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
     void addAttachmentFromFile(const QString &filePath);
     void addAttachmentFromImage(const QImage &image);
     void refreshAttachmentPreview();
@@ -117,4 +123,11 @@ private:
 
     // 拖拽视觉反馈：dragEnter 期间在 ChatPage 边缘画一圈虚线，drop / leave 后清除
     bool m_dragHighlight = false;
+
+    // 正文字号（Ctrl+wheel / Ctrl+= / Ctrl+- 调整，Ctrl+0 恢复默认）。
+    // 新建气泡 / loadMessages 会把当前值同步给每个 MessageBubble。
+    int m_fontSize = 14;
+    static const int kMinFontSize = 10;
+    static const int kMaxFontSize = 28;
+    static const int kDefaultFontSize = 14;
 };

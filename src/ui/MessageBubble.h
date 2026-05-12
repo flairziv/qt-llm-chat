@@ -42,6 +42,9 @@ public:
     void setContent(const QString &content);
     void setAttachments(const QList<Attachment> &attachments);
     void setRoleName(const QString &name);
+    // 正文字体像素大小（默认 14）：联动图片宽度和占位符边长按比例缩放。
+    // 角色标签字号 = pixelSize - 3，最小 9px。
+    void setContentFontSize(int pixelSize);
     QString content() const;
     Role role() const;
 
@@ -117,4 +120,8 @@ private:
     // 图片生成等待期的占位符。rebuildAttachmentWidgets 把 layout 清光时
     // 这些指针随之 deleteLater，列表必须紧跟着 clear() 避免悬空。
     QList<ShimmerWidget *> m_placeholders;
+
+    // 正文字体像素大小（Ctrl+wheel / Ctrl+= / Ctrl+- / Ctrl+0 由 ChatPage 驱动）。
+    // 基线 14px：图片宽度 / 占位符边长 / 角色标签字号都按此值线性缩放。
+    int m_fontPixelSize = 14;
 };

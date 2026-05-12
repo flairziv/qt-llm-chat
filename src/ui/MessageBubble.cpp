@@ -198,9 +198,16 @@ QWidget *MessageBubble::createAttachmentWidget(const Attachment &attachment, int
         }
 
         if (!pixmap.isNull()) {
+            // 图片宽度跟随字体缩放：基线 14px 字体 → 400px 最大宽度，
+            // [120, 800] 兜底，防极端字体大小下图片畸变
+            const int kBaseImageWidth = 400;
+            const int kBaseFontSize = 14;
+            const int targetWidth = qBound(120,
+                                           kBaseImageWidth * m_fontPixelSize / kBaseFontSize,
+                                           800);
             QPixmap display = pixmap;
-            if (display.width() > 400) {
-                display = display.scaledToWidth(400, Qt::SmoothTransformation);
+            if (display.width() > targetWidth) {
+                display = display.scaledToWidth(targetWidth, Qt::SmoothTransformation);
             }
             imageLabel->setPixmap(display);
         } else {
@@ -570,7 +577,14 @@ void MessageBubble::addImagePlaceholder()
 {
     auto *placeholder = new ShimmerWidget(m_bubbleWidget);
     placeholder->setObjectName("imagePlaceholder");
-    placeholder->setFixedSize(200, 200);
+
+    // 占位符边长跟随字体缩放：基线 14px 字体 → 200px，[80, 400] 兜底
+    const int kBasePlaceholderSide = 200;
+    const int kBaseFontSize = 14;
+    const int side = qBound(80,
+                            kBasePlaceholderSide * m_fontPixelSize / kBaseFontSize,
+                            400);
+    placeholder->setFixedSize(side, side);
 
     int insertPos = m_bubbleLayout->indexOf(m_contentLabel);
     if (insertPos < 0) insertPos = m_bubbleLayout->count();
@@ -593,4 +607,36 @@ void MessageBubble::clearImagePlaceholders()
 bool MessageBubble::hasImagePlaceholder() const
 {
     return !m_placeholders.isEmpty();
+}
+
+/**
+ * @brief 设置正文字体像素大小（Ctrl+wheel / Ctrl+= / Ctrl+- / Ctrl+0 走这里）
+ *
+ * 触发的连锁反应：
+ *   - m_contentLabel 字号 / 角色标签字号同步
+ *   - 图片附件按新尺寸重新缩放（rebuildAttachmentWidgets 会读 m_fontPixelSize）
+ *   - 当前在显示的占位符数量保留，按新边长重建（避免缩放打断流式生成）
+ */
+void MessageBubble::setContentFontSize(int pixelSize)
+{
+    if (m_fontPixelSize == pixelSize) {
+        return;  // 字号没变就不要触发 rebuild，省一次图片重缩放
+    }
+    m_fontPixelSize = pixelSize;
+    m_contentLabel->setStyleSheet(QStringLiteral("font-size: %1px;").arg(pixelSize));
+
+    const int roleSize = qMax(pixelSize - 3, 9);
+    QFont f = m_roleLabel->font();
+    f.setPixelSize(roleSize);
+    m_roleLabel->setFont(f);
+
+    // rebuildAttachmentWidgets 会清掉 m_placeholders，但用户在生成中途调整字体不应丢失
+    // 正在转的占位符——记录数量后重新插入。
+    const int placeholderCount = m_placeholders.size();
+    rebuildAttachmentWidgets();
+    for (int i = 0; i < placeholderCount; ++i) {
+        addImagePlaceholder();
+    }
+
+    updateGeometry();
 }

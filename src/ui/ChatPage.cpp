@@ -20,10 +20,12 @@
 #include <QMimeData>
 #include <QPainter>
 #include <QScrollBar>
+#include <QShortcut>
 #include <QSplitter>
 #include <QStringList>
 #include <QTextCursor>
 #include <QTimer>
+#include <QWheelEvent>
 
 ChatPage::ChatPage(AppSettings *settings, QWidget *parent)
     : QWidget(parent)
@@ -179,6 +181,16 @@ void ChatPage::setupUI()
         QScrollBar *bar = m_scrollArea->verticalScrollBar();
         m_autoScrollEnabled = (value >= bar->maximum() - 4);
     });
+
+    // Ctrl+= / Ctrl++ 放大；Ctrl+- 缩小；Ctrl+0 复位。Ctrl+wheel 走 wheelEvent。
+    auto *zoomInSc = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_Equal), this);
+    connect(zoomInSc, &QShortcut::activated, this, &ChatPage::zoomIn);
+    auto *zoomInSc2 = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_Plus), this);
+    connect(zoomInSc2, &QShortcut::activated, this, &ChatPage::zoomIn);
+    auto *zoomOutSc = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_Minus), this);
+    connect(zoomOutSc, &QShortcut::activated, this, &ChatPage::zoomOut);
+    auto *zoomResetSc = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_0), this);
+    connect(zoomResetSc, &QShortcut::activated, this, &ChatPage::zoomReset);
 }
 
 bool ChatPage::eventFilter(QObject *obj, QEvent *event)
@@ -337,6 +349,11 @@ void ChatPage::addMessageBubble(const QString &role, const QString &content,
     auto *bubble = new MessageBubble(bubbleRole, content, attachments, m_messageContainer,
                                      m_userName, m_assistantName,
                                      realIndex, favorite, timestamp, reasoning);
+
+    // 让新气泡跟随当前缩放级别（默认 14 时跳过 rebuild，省一次图片缩放）
+    if (m_fontSize != kDefaultFontSize) {
+        bubble->setContentFontSize(m_fontSize);
+    }
 
     connect(bubble, &MessageBubble::favoriteToggleRequested,
             this, &ChatPage::messageFavoriteToggleRequested);
@@ -629,6 +646,56 @@ void ChatPage::paintEvent(QPaintEvent *event)
     p.setBrush(Qt::NoBrush);
     // 内缩 4px 让虚线完整可见，不被父布局裁掉
     p.drawRoundedRect(rect().adjusted(4, 4, -4, -4), 8, 8);
+}
+
+/**
+ * @brief Ctrl+滚轮：向上放大，向下缩小；其它修饰键交给父类正常滚动消息区。
+ */
+void ChatPage::wheelEvent(QWheelEvent *event)
+{
+    if (event->modifiers() & Qt::ControlModifier) {
+        if (event->angleDelta().y() > 0) {
+            zoomIn();
+        } else if (event->angleDelta().y() < 0) {
+            zoomOut();
+        }
+        event->accept();
+        return;
+    }
+    QWidget::wheelEvent(event);
+}
+
+/** @brief 放大字体（步进 2px，上限 28px） */
+void ChatPage::zoomIn()
+{
+    if (m_fontSize < kMaxFontSize) {
+        m_fontSize += 2;
+        applyFontSizeToAllBubbles();
+    }
+}
+
+/** @brief 缩小字体（步进 2px，下限 10px） */
+void ChatPage::zoomOut()
+{
+    if (m_fontSize > kMinFontSize) {
+        m_fontSize -= 2;
+        applyFontSizeToAllBubbles();
+    }
+}
+
+/** @brief 恢复默认字号 14px */
+void ChatPage::zoomReset()
+{
+    m_fontSize = kDefaultFontSize;
+    applyFontSizeToAllBubbles();
+}
+
+/** @brief 把当前 m_fontSize 推送到所有已有气泡（zoomXxx 调用） */
+void ChatPage::applyFontSizeToAllBubbles()
+{
+    for (auto *bubble : m_bubbles) {
+        bubble->setContentFontSize(m_fontSize);
+    }
 }
 
 /**
