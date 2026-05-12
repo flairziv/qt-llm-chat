@@ -47,6 +47,9 @@ public:
     void setContentFontSize(int pixelSize);
     // 气泡最大宽度（ChatPage::resizeEvent 按视窗宽度 75% 持续推送）。
     void setMaxBubbleWidth(int width);
+    // 主题切换后由 ChatPage 集中调用，重刷与 ElaTheme 相关的颜色（时间戳、文档附件背景）。
+    // 不在 bubble 内部连接 eTheme：大量气泡创建/销毁会导致连接列表震荡。
+    void rerenderForTheme();
     QString content() const;
     Role role() const;
 

@@ -7,6 +7,7 @@
 
 #include <ElaComboBox.h>
 #include <ElaPushButton.h>
+#include <ElaTheme.h>
 #include <QBuffer>
 #include <QDragEnterEvent>
 #include <QDropEvent>
@@ -181,6 +182,14 @@ void ChatPage::setupUI()
         // 把 setValue(maximum) 算为"在底部"以及小幅惯性滚动。
         QScrollBar *bar = m_scrollArea->verticalScrollBar();
         m_autoScrollEnabled = (value >= bar->maximum() - 4);
+    });
+
+    // 集中监听主题切换：把所有气泡的主题相关样式重刷一遍。
+    // 不让每个 bubble 自己连 eTheme，避免大量气泡创建/销毁时连接列表震荡。
+    connect(eTheme, &ElaTheme::themeModeChanged, this, [this]() {
+        for (auto *bubble : m_bubbles) {
+            if (bubble) bubble->rerenderForTheme();
+        }
     });
 
     // Ctrl+= / Ctrl++ 放大；Ctrl+- 缩小；Ctrl+0 复位。Ctrl+wheel 走 wheelEvent。

@@ -16,8 +16,29 @@
 #include <QStandardPaths>
 #include <QStyle>
 #include <QToolButton>
+#include <ElaTheme.h>
 
 namespace {
+
+// 文档/文本附件标签的主题色：light 浅灰半透，dark 深灰半透。
+// dark 主题下原来的硬编码 rgba(128,128,128,0.08) 与背景对比度太低，几乎看不见，
+// 这里按主题取两套配色，并在 rerenderForTheme 里同步更新。
+QString attachmentBgStyle()
+{
+    const bool isDark = (eTheme->getThemeMode() == ElaThemeType::Dark);
+    const QString bg = isDark ? QStringLiteral("rgba(255,255,255,0.08)")
+                              : QStringLiteral("rgba(0,0,0,0.05)");
+    return QStringLiteral("background: %1; border-radius: 6px; padding: 6px 10px;").arg(bg);
+}
+
+// 时间戳颜色按主题：light 偏深的中性灰 / dark 偏浅，
+// 比硬编码 rgba(128,128,128,0.85) 在各自主题里都更协调。
+QString timeLabelColorStyle()
+{
+    const bool isDark = (eTheme->getThemeMode() == ElaThemeType::Dark);
+    return QStringLiteral("color: %1;").arg(isDark ? QStringLiteral("#999999")
+                                                   : QStringLiteral("#7a7a7a"));
+}
 
 QString attachmentLabelText(const Attachment &attachment)
 {
@@ -90,8 +111,8 @@ void MessageBubble::setupUI()
     QFont timeFont = m_timeLabel->font();
     timeFont.setPointSize(9);
     m_timeLabel->setFont(timeFont);
-    // 半透明灰色：dark / light 主题下都能看见，省去 ElaTheme 监听 + 主题切换重绘
-    m_timeLabel->setStyleSheet(QStringLiteral("color: rgba(128,128,128,0.85);"));
+    // 主题色按 light/dark 取两套：rerenderForTheme 切主题时同步更新
+    m_timeLabel->setStyleSheet(timeLabelColorStyle());
     updateTimestampDisplay();
 
     m_bubbleWidget = new QWidget(this);
@@ -226,13 +247,12 @@ QWidget *MessageBubble::createAttachmentWidget(const Attachment &attachment, int
     }
 
     QLabel *label = new QLabel(attachmentLabelText(attachment), m_bubbleWidget);
+    // objectName 标记一下，rerenderForTheme 可以在主题切换时按它找到所有附件标签重刷背景
+    label->setObjectName("attachmentLabel");
     label->setWordWrap(true);
     label->setTextFormat(Qt::PlainText);
     label->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    label->setStyleSheet(
-        "background: rgba(128,128,128,0.08);"
-        "border-radius: 6px;"
-        "padding: 6px 10px;");
+    label->setStyleSheet(attachmentBgStyle());
     return label;
 }
 
@@ -613,6 +633,29 @@ bool MessageBubble::hasImagePlaceholder() const
 void MessageBubble::setMaxBubbleWidth(int width)
 {
     m_bubbleWidget->setMaximumWidth(width);
+}
+
+/**
+ * @brief 主题切换后由 ChatPage 集中调用，重刷与主题相关的颜色
+ *
+ * - 时间戳标签颜色
+ * - 文档/文本附件标签的背景（按 objectName == "attachmentLabel" 在 m_bubbleLayout 里找）
+ *
+ * 图片附件不需要刷（只显示像素），用户/助手角色标签由 QSS / setObjectName 驱动，
+ * 正文颜色目前也走 QSS，所以这里只处理两类。
+ */
+void MessageBubble::rerenderForTheme()
+{
+    if (m_timeLabel) {
+        m_timeLabel->setStyleSheet(timeLabelColorStyle());
+    }
+    const QString attachStyle = attachmentBgStyle();
+    for (int i = 0; i < m_bubbleLayout->count(); ++i) {
+        QWidget *w = m_bubbleLayout->itemAt(i)->widget();
+        if (w && w->objectName() == QLatin1String("attachmentLabel")) {
+            w->setStyleSheet(attachStyle);
+        }
+    }
 }
 
 /**
