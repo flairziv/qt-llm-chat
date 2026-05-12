@@ -30,7 +30,7 @@ QScrollArea { background: transparent; border: none; }
         <height>488</height>
        </rect>
       </property>
-      <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,0,0,0,0,0,1">
+      <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,0,0,0,0,0,0,1">
        <item>
         <widget class="ElaText" name="titleLabel">
          <property name="font">
@@ -229,6 +229,11 @@ QScrollArea { background: transparent; border: none; }
             </item>
             <item>
              <property name="text">
+              <string>gpt-image-2</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
               <string>gpt-4-turbo</string>
              </property>
             </item>
@@ -331,6 +336,57 @@ QScrollArea { background: transparent; border: none; }
             <item>
              <property name="text">
               <string>xhigh</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="ElaScrollPageArea" name="imageApiModeArea" native="true">
+         <layout class="QHBoxLayout" name="imageApiModeLayout" stretch="2,3">
+          <property name="leftMargin">
+           <number>15</number>
+          </property>
+          <property name="rightMargin">
+           <number>15</number>
+          </property>
+          <item>
+           <widget class="ElaText" name="imageApiModeLabel">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>chat -&gt; /v1/chat/completions, images -&gt; /v1/images/generations, edits -&gt; /v1/images/edits, responses -&gt; /v1/responses with image_generation tool.</string>
+            </property>
+            <property name="text">
+             <string>API Mode</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="ElaComboBox" name="comboBox_imageApiMode">
+            <item>
+             <property name="text">
+              <string>images</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>edits</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>chat</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>responses</string>
              </property>
             </item>
            </widget>
