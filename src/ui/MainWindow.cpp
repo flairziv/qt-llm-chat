@@ -14,13 +14,19 @@
 #include "core/OpenAIProvider.h"
 #include "core/ChatSession.h"
 #include "core/EdgeTTSProvider.h"
+#include "core/LLMProvider.h"
 
 #include <QRegularExpression>
 #include <QCoreApplication>
 #include <QFile>
 #include <QFileDialog>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QShortcut>
 #include <QMediaPlayer>
 #include <QDebug>
@@ -831,6 +837,11 @@ void MainWindow::onResponseFinished(const QString &fullResponse)
 
         // 当前会话刚有新回复 → 推到列表顶部，最近活跃优先
         m_chatPage->moveSessionToTop(session->id());
+
+        // 首轮对话完成（user + assistant 共 2 条）→ 自动生成会话标题
+        if (session->messages().size() == 2) {
+            generateSessionTitle(session);
+        }
     }
 
     // TTS 朗读 AI 回复（预连接已就绪，直接发 SSML 零延迟）
@@ -1048,4 +1059,113 @@ void MainWindow::onMessageRegenerate(int index)
 
     // 预建空 assistant 气泡 + 重置流式状态 + 发起请求（与 onSendMessage 共用）
     beginStreamingForActiveSession();
+}
+
+/**
+ * @brief 用首条 user 消息让模型出一句 4-8 词的话题标题，写回会话
+ *
+ * 三家 provider 各走各的 endpoint（claude messages / gemini generateContent /
+ * openai chat.completions），共用 m_nam。失败/超长/空返回都静默放弃，
+ * 会话保留默认标题，不阻塞主流程。
+ */
+void MainWindow::generateSessionTitle(ChatSession *session)
+{
+    if (!session || session->messages().size() < 2) return;
+
+    QString firstUserMsg = session->messages().at(0).content;
+    if (firstUserMsg.isEmpty()) return;
+    if (firstUserMsg.length() > 200) firstUserMsg = firstUserMsg.left(200);
+
+    const QString providerName = session->providerName();
+    QNetworkRequest request;
+    QJsonObject body;
+    const QString prompt = QStringLiteral(
+        "Generate a short 4-8 word title summarizing this conversation topic. "
+        "Reply with ONLY the title, no quotes, no punctuation at the end.\n\n"
+        "User message: %1").arg(firstUserMsg);
+
+    if (providerName == "claude") {
+        if (m_settings->claudeApiKey().isEmpty()) return;
+        request = LLMProvider::makeJsonRequest(QUrl(m_settings->claudeBaseUrl() + "/v1/messages"));
+        request.setRawHeader("x-api-key", m_settings->claudeApiKey().toUtf8());
+        request.setRawHeader("anthropic-version", "2023-06-01");
+
+        body["model"] = m_settings->claudeModel();
+        body["max_tokens"] = 50;
+        QJsonArray msgs;
+        QJsonObject m; m["role"] = "user"; m["content"] = prompt;
+        msgs.append(m);
+        body["messages"] = msgs;
+    } else if (providerName == "gemini") {
+        if (m_settings->geminiApiKey().isEmpty()) return;
+        const QString url = QStringLiteral("%1/v1beta/models/%2:generateContent?key=%3")
+                                .arg(m_settings->geminiBaseUrl(),
+                                     m_settings->geminiModel(),
+                                     m_settings->geminiApiKey());
+        request = LLMProvider::makeJsonRequest(QUrl(url));
+
+        QJsonObject genConfig;
+        genConfig["maxOutputTokens"] = 50;
+        body["generationConfig"] = genConfig;
+        QJsonArray contents;
+        QJsonObject content;
+        content["role"] = "user";
+        QJsonArray parts;
+        QJsonObject part;
+        part["text"] = prompt;
+        parts.append(part);
+        content["parts"] = parts;
+        contents.append(content);
+        body["contents"] = contents;
+    } else {
+        // openai / 兼容 endpoint：本地端点（localhost / 127.0.0.1）允许空 key
+        if (m_settings->openaiApiKey().isEmpty()
+            && !m_settings->openaiBaseUrl().contains("localhost")
+            && !m_settings->openaiBaseUrl().contains("127.0.0.1")) return;
+        request = LLMProvider::makeJsonRequest(QUrl(m_settings->openaiBaseUrl() + "/v1/chat/completions"));
+        if (!m_settings->openaiApiKey().isEmpty()) {
+            request.setRawHeader("Authorization", ("Bearer " + m_settings->openaiApiKey()).toUtf8());
+        }
+        body["model"] = m_settings->openaiModel();
+        body["max_tokens"] = 50;
+        QJsonArray msgs;
+        QJsonObject m; m["role"] = "user"; m["content"] = prompt;
+        msgs.append(m);
+        body["messages"] = msgs;
+    }
+
+    const QString sessionId = session->id();
+    QNetworkReply *reply = m_nam->post(request, QJsonDocument(body).toJson());
+    connect(reply, &QNetworkReply::finished, this, [this, reply, sessionId, providerName]() {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) return;
+        const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+        const QJsonObject obj = doc.object();
+
+        QString title;
+        if (providerName == "claude") {
+            const QJsonArray content = obj["content"].toArray();
+            if (!content.isEmpty()) title = content[0].toObject()["text"].toString();
+        } else if (providerName == "gemini") {
+            const QJsonArray candidates = obj["candidates"].toArray();
+            if (!candidates.isEmpty()) {
+                const QJsonArray parts = candidates[0].toObject()["content"].toObject()["parts"].toArray();
+                if (!parts.isEmpty()) title = parts[0].toObject()["text"].toString();
+            }
+        } else {
+            const QJsonArray choices = obj["choices"].toArray();
+            if (!choices.isEmpty()) {
+                title = choices[0].toObject()["message"].toObject()["content"].toString();
+            }
+        }
+        title = title.trimmed().remove('"').remove('\n');
+        if (title.isEmpty() || title.length() > 100) return;
+
+        ChatSession *s = m_sessionManager->session(sessionId);
+        if (s) {
+            s->setTitle(title);
+            m_sessionManager->saveSession(s);
+            m_chatPage->refreshSessionList(m_sessionManager->allSessions());
+        }
+    });
 }

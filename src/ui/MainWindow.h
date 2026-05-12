@@ -74,6 +74,14 @@ private:
     void queuePendingBubbleText(const QString &text); // 把 token 排入流式 flush 队列
     void abortStreamingAndSavePartial();        // Esc 中止流式：保留已收到的 partial reply
     void beginStreamingForActiveSession();      // 复用：预建气泡 + 重置状态 + 发起流式请求
+    /**
+     * @brief 首轮对话结束后自动生成简短会话标题
+     *
+     * 触发条件：onResponseFinished 收到 assistant 消息后会话总条数恰为 2
+     * （user + assistant 各一条）。向当前 provider 发一次非流式短请求让模型
+     * 用 4-8 词总结话题。失败时保留默认标题，不影响主流程。
+     */
+    void generateSessionTitle(ChatSession *session);
 
     AppSettings *m_settings;
     SessionManager *m_sessionManager;
