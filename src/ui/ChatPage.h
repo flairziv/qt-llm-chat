@@ -86,6 +86,8 @@ private:
     void dropEvent(QDropEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+    void updateBubbleMaxWidth();    // 按 m_scrollArea 视窗宽度推 75% 到所有气泡
     void addAttachmentFromFile(const QString &filePath);
     void addAttachmentFromImage(const QImage &image);
     void refreshAttachmentPreview();

@@ -45,6 +45,8 @@ public:
     // 正文字体像素大小（默认 14）：联动图片宽度和占位符边长按比例缩放。
     // 角色标签字号 = pixelSize - 3，最小 9px。
     void setContentFontSize(int pixelSize);
+    // 气泡最大宽度（ChatPage::resizeEvent 按视窗宽度 75% 持续推送）。
+    void setMaxBubbleWidth(int width);
     QString content() const;
     Role role() const;
 

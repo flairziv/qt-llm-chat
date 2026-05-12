@@ -19,6 +19,7 @@
 #include <QLabel>
 #include <QMimeData>
 #include <QPainter>
+#include <QResizeEvent>
 #include <QScrollBar>
 #include <QShortcut>
 #include <QSplitter>
@@ -355,6 +356,10 @@ void ChatPage::addMessageBubble(const QString &role, const QString &content,
         bubble->setContentFontSize(m_fontSize);
     }
 
+    // 气泡最大宽度跟随聊天区域：viewport 宽 - 40 (左右各 20px 边距) 的 75%，最小 300px
+    const int areaWidth = m_scrollArea->viewport()->width() - 40;
+    bubble->setMaxBubbleWidth(qMax(areaWidth * 3 / 4, 300));
+
     connect(bubble, &MessageBubble::favoriteToggleRequested,
             this, &ChatPage::messageFavoriteToggleRequested);
     connect(bubble, &MessageBubble::deleteFromHereRequested,
@@ -663,6 +668,28 @@ void ChatPage::wheelEvent(QWheelEvent *event)
         return;
     }
     QWidget::wheelEvent(event);
+}
+
+/** @brief 窗口大小变化时把新的最大气泡宽度推送给所有现有气泡 */
+void ChatPage::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    updateBubbleMaxWidth();
+}
+
+/**
+ * @brief 按聊天区域视窗宽度 75% 计算气泡最大宽度，应用到所有气泡
+ *
+ * 视窗宽度先减去消息容器左右边距各 20px，再取 75%；最小 300px 兜底，避免
+ * 窄窗里气泡缩成一线。新建气泡时 addMessageBubble 也会单独算一次同值。
+ */
+void ChatPage::updateBubbleMaxWidth()
+{
+    const int areaWidth = m_scrollArea->viewport()->width() - 40;
+    const int maxWidth = qMax(areaWidth * 3 / 4, 300);
+    for (auto *bubble : m_bubbles) {
+        bubble->setMaxBubbleWidth(maxWidth);
+    }
 }
 
 /** @brief 放大字体（步进 2px，上限 28px） */

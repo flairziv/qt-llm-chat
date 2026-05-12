@@ -609,6 +609,12 @@ bool MessageBubble::hasImagePlaceholder() const
     return !m_placeholders.isEmpty();
 }
 
+/** @brief 由 ChatPage 推送：气泡最大宽度跟随聊天区域 75% 自适应 */
+void MessageBubble::setMaxBubbleWidth(int width)
+{
+    m_bubbleWidget->setMaximumWidth(width);
+}
+
 /**
  * @brief 设置正文字体像素大小（Ctrl+wheel / Ctrl+= / Ctrl+- / Ctrl+0 走这里）
  *
