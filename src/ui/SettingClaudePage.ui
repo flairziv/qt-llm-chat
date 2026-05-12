@@ -149,6 +149,21 @@ QScrollArea { background: transparent; border: none; }
            <widget class="ElaComboBox" name="comboBox_model">
             <item>
              <property name="text">
+              <string>claude-opus-4-7</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>claude-sonnet-4-7</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>claude-haiku-4-7</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
               <string>claude-opus-4-6</string>
              </property>
             </item>

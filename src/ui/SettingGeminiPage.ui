@@ -101,7 +101,7 @@ QScrollArea { background: transparent; border: none; }
              </font>
             </property>
             <property name="toolTip">
-             <string>Gemini API base URL</string>
+             <string>Gemini API base URL (Google AI Studio)</string>
             </property>
             <property name="text">
              <string>Base URL</string>
@@ -147,6 +147,16 @@ QScrollArea { background: transparent; border: none; }
           </item>
           <item>
            <widget class="ElaComboBox" name="comboBox_model">
+            <item>
+             <property name="text">
+              <string>gemini-3-pro</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>gemini-3-flash</string>
+             </property>
+            </item>
             <item>
              <property name="text">
               <string>gemini-2.5-pro</string>
