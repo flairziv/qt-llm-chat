@@ -248,6 +248,8 @@ void MainWindow::setupConnections()
             this, &MainWindow::onMessageDeleteFromHere);
     connect(m_chatPage, &ChatPage::messageRegenerateRequested,
             this, &MainWindow::onMessageRegenerate);
+    connect(m_chatPage, &ChatPage::messageEditRequested,
+            this, &MainWindow::onMessageEdit);
 
     // === 设置变更信号 ===
     // 旧路径是「SettingPage::settingsChanged → MainWindow::onSettingsChanged → createProvider()」，
@@ -986,6 +988,30 @@ void MainWindow::onMessageDeleteFromHere(int index)
     if (!session) return;
     if (index >= session->messages().size()) return;
 
+    session->truncateFrom(index);
+    m_sessionManager->saveSession(session);
+    m_chatPage->loadMessages(session->messages());
+}
+
+/**
+ * @brief 编辑 user 消息：把原文回填输入框，截断本条及之后的所有消息
+ *
+ * 这是「修改并重发」的入口：用户右键 user 气泡 → Edit Message → 原文进输入框，
+ * 后续消息全被截掉。用户改完点 Send 即重新触发流式请求，等于以新内容续接对话。
+ * 流式过程中禁止，避免和正在进行的请求互踩。
+ */
+void MainWindow::onMessageEdit(int index)
+{
+    if (m_isStreaming) return;
+    if (index < 0) return;
+    ChatSession *session = m_sessionManager->activeSession();
+    if (!session) return;
+    if (index >= session->messages().size()) return;
+
+    const ChatMessage msg = session->messageAt(index);
+    if (msg.role != "user") return;   // 只允许编辑 user 消息
+
+    m_chatPage->fillInputText(msg.content);
     session->truncateFrom(index);
     m_sessionManager->saveSession(session);
     m_chatPage->loadMessages(session->messages());

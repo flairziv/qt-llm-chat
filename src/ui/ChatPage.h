@@ -43,6 +43,7 @@ public:
     void setInputEnabled(bool enabled);
     void setStatusText(const QString &text);
     void setLoading(bool loading);            // 控制 AssistantLoadingWidget 的眨眼动画
+    void fillInputText(const QString &text);  // 把指定文本回填到输入框并聚焦（编辑消息用）
     void scrollToBottom();
     // 强制滚到底部并重启自动跟随。仅用于"用户主动想看到最新"的场景：
     // 发送消息、切换会话、加载历史。不要在流式 token 路径里调用——那里要尊重
@@ -72,6 +73,7 @@ signals:
     void messageFavoriteToggleRequested(int index);
     void messageDeleteFromHereRequested(int index);
     void messageRegenerateRequested(int index);
+    void messageEditRequested(int index);   // 用户右键 user 气泡 "Edit Message"
 
 private slots:
     void onSendClicked();

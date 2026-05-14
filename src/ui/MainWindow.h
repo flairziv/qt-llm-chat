@@ -60,6 +60,7 @@ private slots:
     void onMessageFavoriteToggle(int index);   // 收藏/取消收藏单条消息
     void onMessageDeleteFromHere(int index);   // 删除该消息及其后的全部消息
     void onMessageRegenerate(int index);       // 重新生成 assistant 回复（截断到 user 后重发）
+    void onMessageEdit(int index);             // 编辑 user 消息：回填输入框并截断本条及之后
     void onImageGenerationStarted(int count);  // Provider 开始图像生成 → 切状态文字
     void flushPendingBubbleText();              // 把累积的 token 批量喂给气泡（80ms 节流）
     void onReasoningTokenReceived(const QString &token); // 收到 reasoning（思考链）增量

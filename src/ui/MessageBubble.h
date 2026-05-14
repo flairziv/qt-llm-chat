@@ -78,6 +78,7 @@ signals:
     void favoriteToggleRequested(int index);
     void deleteFromHereRequested(int index);
     void regenerateRequested(int index);    // 重新生成该 assistant 回复（仅 assistant 气泡触发）
+    void editRequested(int index);          // 把 user 消息回填输入框并截断后续（仅 user 气泡触发）
 
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;

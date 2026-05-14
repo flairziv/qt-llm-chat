@@ -375,6 +375,8 @@ void ChatPage::addMessageBubble(const QString &role, const QString &content,
             this, &ChatPage::messageDeleteFromHereRequested);
     connect(bubble, &MessageBubble::regenerateRequested,
             this, &ChatPage::messageRegenerateRequested);
+    connect(bubble, &MessageBubble::editRequested,
+            this, &ChatPage::messageEditRequested);
 
     int insertIndex = m_messageLayout->count() - 1;
     if (insertIndex < 0) {
@@ -515,6 +517,16 @@ void ChatPage::scrollToBottom()
 {
     QScrollBar *bar = m_scrollArea->verticalScrollBar();
     bar->setValue(bar->maximum());
+}
+
+/** @brief 将文本回填到输入框、聚焦、光标移到末尾。由编辑消息流程调用 */
+void ChatPage::fillInputText(const QString &text)
+{
+    m_inputEdit->setPlainText(text);
+    m_inputEdit->setFocus();
+    QTextCursor cursor = m_inputEdit->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    m_inputEdit->setTextCursor(cursor);
 }
 
 void ChatPage::scrollToBottomForce()
