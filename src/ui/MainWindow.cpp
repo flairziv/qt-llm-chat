@@ -802,7 +802,17 @@ void MainWindow::onResponseFinished(const QString &fullResponse)
     m_isStreaming = false;
     m_chatPage->setInputEnabled(true);
     m_chatPage->setLoading(false);
-    m_chatPage->setStatusText("");
+
+    // 计算耗时 + 粗估 token 数（≈ 4 字符/token），状态栏显示 3 秒后自动清。
+    // singleShot 里检查 m_isStreaming：3 秒内用户又发起一轮就让那轮的状态文本接管。
+    const qint64 elapsedMs = m_requestStartTime.msecsTo(QDateTime::currentDateTime());
+    const double elapsedSec = elapsedMs / 1000.0;
+    const int estimatedTokens = fullResponse.length() / 4;
+    m_chatPage->setStatusText(
+        QStringLiteral("%1 tokens | %2s").arg(estimatedTokens).arg(elapsedSec, 0, 'f', 1));
+    QTimer::singleShot(3000, this, [this]() {
+        if (!m_isStreaming) m_chatPage->setStatusText("");
+    });
 
     // 图片生成期间挂在气泡上的 ShimmerWidget 占位符必须收掉，否则会一直停留
     // 在 "正在画" 状态。即便本轮没启用图像生成，clearImagePlaceholdersInLastBubble
@@ -1044,6 +1054,7 @@ void MainWindow::beginStreamingForActiveSession()
     if (m_streamFlushTimer) m_streamFlushTimer->stop();
     m_reasoningBuffer.clear();
     m_firstTokenSeen = false;
+    m_requestStartTime = QDateTime::currentDateTime();
 
     m_ttsProvider->abort();
     m_ttsPendingPlay = false;

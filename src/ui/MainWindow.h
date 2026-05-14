@@ -2,6 +2,7 @@
 #include "ElaWindow.h"
 #include "core/ChatSession.h"
 
+#include <QDateTime>
 #include <QNetworkAccessManager>
 
 class AppSettings;
@@ -118,6 +119,10 @@ private:
     // 并把 "Thinking..." 切成 "Generating..."。让用户区分"模型还在憋着"和
     // "已经在出文了"。
     bool m_firstTokenSeen = false;
+
+    // 请求计时：beginStreamingForActiveSession 时记录起点，onResponseFinished
+    // 计算耗时并和粗估 token 数一起显示在状态栏 3 秒。
+    QDateTime m_requestStartTime;
 
     // TTS 相关
     EdgeTTSProvider *m_ttsProvider = nullptr;    // Edge TTS 语音合成器
