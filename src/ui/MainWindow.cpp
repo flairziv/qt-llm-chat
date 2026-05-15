@@ -115,6 +115,16 @@ MainWindow::MainWindow(AppSettings *settings, QWidget *parent)
         qWarning() << "[TTS] Error:" << err;
     });
 
+    // QMediaPlayer 播放失败诊断（missing codec / wmfengine.dll / 设备占用等），
+    // 没有这条日志时 stop / setMedia 链路上的回放失败完全静默 —— 用户只看到
+    // 立绘嘴不动、声音不响，难以定位。
+    connect(m_ttsPlayer,
+            QOverload<QMediaPlayer::Error>::of(&QMediaPlayer::error),
+            this, [this](QMediaPlayer::Error err) {
+        qWarning() << "[TTS] QMediaPlayer error:" << err
+                   << "errorString=" << m_ttsPlayer->errorString();
+    });
+
     // TTS 启用时预建立 WebSocket 连接，消除首次合成的建连延迟
     if (m_settings->ttsEnabled()) {
         m_ttsProvider->preConnect();
