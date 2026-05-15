@@ -469,6 +469,26 @@ void ChatPage::replaceLastBubbleContent(const QString &text)
     scrollToBottom();
 }
 
+void ChatPage::replaceLastBubbleMessage(const QString &text, const QList<Attachment> &attachments)
+{
+    if (m_bubbles.isEmpty()) {
+        return;
+    }
+    // 先换附件再换正文：setAttachments 会重建附件区子 widget；setContent 只动 QLabel。
+    // 两次都会触发布局，把它放一起完成避免中间态闪烁。
+    m_bubbles.last()->setAttachments(attachments);
+    m_bubbles.last()->setContent(text);
+    scrollToBottom();
+}
+
+void ChatPage::replaceLastBubbleReasoning(const QString &reasoning)
+{
+    if (m_bubbles.isEmpty()) {
+        return;
+    }
+    m_bubbles.last()->setReasoning(reasoning);
+}
+
 void ChatPage::searchInMessages(const QString &keyword)
 {
     // 命中样式直接 setStyleSheet 在 MessageBubble 外层，#userBubble / #assistantBubble

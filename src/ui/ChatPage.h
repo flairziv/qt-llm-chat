@@ -32,6 +32,10 @@ public:
     void appendToLastBubble(const QString &token);
     void appendReasoningToLastBubble(const QString &token);   // reasoning 流式增量写入
     void replaceLastBubbleContent(const QString &text);
+    // 整段替换最后一个气泡的正文 + 附件（regenerate 路径 / 图像生成 markers 转 Attachment 后用）
+    void replaceLastBubbleMessage(const QString &text, const QList<Attachment> &attachments);
+    // 整段替换最后一个气泡的 reasoning 文本（loadMessages / 重试路径）
+    void replaceLastBubbleReasoning(const QString &reasoning);
     // 图片生成占位符（ShimmerWidget）：响应完成 / 出错任一路径都必须 clear，
     // MainWindow::onResponseFinished / onProviderError / abortStreamingAndSavePartial 已覆盖
     void addImagePlaceholderToLastBubble(int count = 1);
