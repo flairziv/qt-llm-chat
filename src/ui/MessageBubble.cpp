@@ -343,6 +343,9 @@ void MessageBubble::onContextMenu(const QPoint &pos)
 {
     QMenu menu(this);
     QAction *copyAction = menu.addAction(tr("Copy"));
+    // 有选区时 Copy 才"亮"，否则按下相当于复制整段，给个视觉提示更准确
+    copyAction->setEnabled(m_contentLabel->hasSelectedText());
+    QAction *selectAllAction = menu.addAction(tr("Select All"));
     QAction *favAction = menu.addAction(m_favorite ? tr("Unfavorite") : tr("Favorite"));
     // user 气泡多一个"编辑"项：把消息内容回填输入框 + 截断本条及之后（重新发送）
     QAction *editAction = nullptr;
@@ -389,7 +392,14 @@ void MessageBubble::onContextMenu(const QPoint &pos)
     }
 
     if (selected == copyAction) {
-        QApplication::clipboard()->setText(m_content);
+        // 选区优先：用户高亮了片段就只复制片段，否则给整段 m_content。
+        // 走 selectedText() 拿到的是 QLabel 内呈现的文本（已去 markup），和 m_content
+        // 在纯文本气泡上等价。
+        QString text = m_contentLabel->selectedText();
+        if (text.isEmpty()) text = m_content;
+        QApplication::clipboard()->setText(text);
+    } else if (selected == selectAllAction) {
+        m_contentLabel->setSelection(0, m_contentLabel->text().length());
     } else if (selected == favAction) {
         emit favoriteToggleRequested(m_index);
     } else if (editAction && selected == editAction) {

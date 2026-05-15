@@ -18,8 +18,10 @@
 
 #include <QRegularExpression>
 #include <QCoreApplication>
+#include <QDir>
 #include <QFile>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -35,6 +37,55 @@
 #include <QRandomGenerator>
 
 #include "ElaContentDialog.h"
+
+namespace {
+
+/**
+ * @brief 从 assistant 回复里抽取 [Generated Image Saved] 标记 → Attachment 列表
+ *
+ * OpenAI image / gpt-image 模式落地的图片文件由 provider 写盘后以
+ *   `[Generated Image Saved] <绝对路径>`
+ * 形式插在回复正文里。这里逐行匹配、读出文件字节做成 Attachment::Image，
+ * 然后把所有标记从 responseText 里删掉，再合并多余空行 + 首尾 trim，
+ * 让最终落盘到 ChatMessage 的正文只剩"模型说的话"。读不开的文件直接跳过
+ * （避免一张图丢了整段回复也丢）。
+ */
+QList<Attachment> extractGeneratedImageAttachments(QString *responseText)
+{
+    QList<Attachment> attachments;
+    if (!responseText) {
+        return attachments;
+    }
+
+    const QRegularExpression savedImageRe(
+        QStringLiteral("^\\s*\\[Generated Image Saved\\]\\s+(.+?)\\s*$"),
+        QRegularExpression::MultilineOption);
+    QRegularExpressionMatchIterator it = savedImageRe.globalMatch(*responseText);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch match = it.next();
+        const QString imagePath = QDir::fromNativeSeparators(match.captured(1).trimmed());
+        QFile file(imagePath);
+        if (!file.open(QIODevice::ReadOnly)) {
+            continue;
+        }
+
+        Attachment att;
+        att.type = Attachment::Image;
+        att.fileName = QFileInfo(imagePath).fileName();
+        att.mimeType = QStringLiteral("image/png");
+        att.fileData = file.readAll();
+        if (!att.fileData.isEmpty()) {
+            attachments.append(att);
+        }
+    }
+
+    responseText->remove(savedImageRe);
+    responseText->replace(QRegularExpression(QStringLiteral("\\n{3,}")), QStringLiteral("\n\n"));
+    *responseText = responseText->trimmed();
+    return attachments;
+}
+
+} // namespace
 
 // ============================================================================
 // 构造 / 析构
@@ -752,7 +803,19 @@ void MainWindow::onTokenReceived(const QString &token)
 void MainWindow::queuePendingBubbleText(const QString &text)
 {
     if (text.isEmpty()) return;
-    m_pendingBubbleText += text;
+
+    // [Generated Image Saved/URL] 标记在 onResponseFinished 里才转成 Attachment，
+    // 流式期间先把它们从显示文本里剥掉，否则用户会先看到一行裸路径再被替换，
+    // 视觉跳变很明显。这里只动 display；m_pendingBubbleText 才进气泡。
+    QString display = text;
+    static const QRegularExpression imgMarkerRe(
+        QStringLiteral("\\n?\\[Generated Image (?:Saved|URL)\\][^\\n]*\\n?"));
+    display.remove(imgMarkerRe);
+    if (display.isEmpty()) {
+        return;
+    }
+
+    m_pendingBubbleText += display;
     if (m_streamFlushTimer && !m_streamFlushTimer->isActive()) {
         m_streamFlushTimer->start();
     }
@@ -836,14 +899,25 @@ void MainWindow::onResponseFinished(const QString &fullResponse)
 
     // 从完整回复中剥离开头的 [情绪名] 标签
     QString cleanResponse = fullResponse;
+
+    // 1. 先抽 [Generated Image Saved] 标记 → Attachment 列表（同时从 cleanResponse 删掉那些行）
+    //    必须先于情绪标签剥离，否则 "[Generated Image Saved] ..." 的方括号可能被
+    //    情绪正则误吃首段。
+    QList<Attachment> generatedAttachments = extractGeneratedImageAttachments(&cleanResponse);
+
+    // 2. 立绘开启时再剥首段情绪标签
     if (m_tachieEnabled && m_tachieWindow) {
         // 正则为静态常量，每次响应完成只引用编译好的实例
         static const QRegularExpression reEmotionTagStrip(
             QStringLiteral("^\\s*\\[[^\\]]+\\]\\s*"));
-        cleanResponse = fullResponse;
         cleanResponse.remove(reEmotionTagStrip);
+    }
 
-        // 替换气泡内容为干净文本（去除标签）
+    // 3. 同步气泡：有生成图片用 replaceLastBubbleMessage 同时换正文 + 附件；
+    //    仅文本（去标签后）用 replaceLastBubbleContent。两条路径都让占位符腾位置给真图。
+    if (!generatedAttachments.isEmpty()) {
+        m_chatPage->replaceLastBubbleMessage(cleanResponse, generatedAttachments);
+    } else if (m_tachieEnabled && m_tachieWindow) {
         m_chatPage->replaceLastBubbleContent(cleanResponse);
     }
 
@@ -854,6 +928,7 @@ void MainWindow::onResponseFinished(const QString &fullResponse)
         assistantMsg.role = "assistant";
         assistantMsg.content = cleanResponse;
         assistantMsg.reasoning = m_reasoningBuffer;
+        assistantMsg.attachments = generatedAttachments;
         session->addMessage(assistantMsg);
         m_sessionManager->saveSession(session);
 
