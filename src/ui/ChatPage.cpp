@@ -18,6 +18,7 @@
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMimeData>
 #include <QPainter>
 #include <QResizeEvent>
@@ -101,6 +102,36 @@ void ChatPage::setupUI()
     m_messageLayout->addStretch(1);
 
     m_scrollArea->setWidget(m_messageContainer);
+
+    // Ctrl+F 触发的搜索栏（默认隐藏，置于 scrollArea 上方）
+    m_searchBar = new QWidget(rightPanel);
+    m_searchBar->setObjectName("searchBar");
+    m_searchBar->hide();
+    auto *searchLayout = new QHBoxLayout(m_searchBar);
+    searchLayout->setContentsMargins(16, 4, 16, 4);
+    searchLayout->setSpacing(8);
+
+    m_searchEdit = new QLineEdit(m_searchBar);
+    m_searchEdit->setPlaceholderText("Search in messages...");
+    searchLayout->addWidget(m_searchEdit, 1);
+
+    auto *searchCloseBtn = new ElaPushButton("x", m_searchBar);
+    searchCloseBtn->setFixedSize(24, 24);
+    searchLayout->addWidget(searchCloseBtn);
+
+    connect(m_searchEdit, &QLineEdit::textChanged, this, [this](const QString &text) {
+        if (text.isEmpty()) {
+            clearSearchHighlight();
+        } else {
+            searchInMessages(text);
+        }
+    });
+    connect(searchCloseBtn, &ElaPushButton::clicked, this, [this]() {
+        clearSearchHighlight();
+        m_searchBar->hide();
+    });
+
+    rightLayout->addWidget(m_searchBar, 0);
     rightLayout->addWidget(m_scrollArea, 1);
 
     // 流式时显示眨眼/扫视头像 + 状态文字，setStatusText / setLoading 控制
@@ -201,6 +232,14 @@ void ChatPage::setupUI()
     connect(zoomOutSc, &QShortcut::activated, this, &ChatPage::zoomOut);
     auto *zoomResetSc = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_0), this);
     connect(zoomResetSc, &QShortcut::activated, this, &ChatPage::zoomReset);
+
+    // Ctrl+F 打开消息搜索栏
+    auto *searchSc = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_F), this);
+    connect(searchSc, &QShortcut::activated, this, [this]() {
+        m_searchBar->show();
+        m_searchEdit->setFocus();
+        m_searchEdit->selectAll();
+    });
 }
 
 bool ChatPage::eventFilter(QObject *obj, QEvent *event)
@@ -428,6 +467,33 @@ void ChatPage::replaceLastBubbleContent(const QString &text)
     }
     m_bubbles.last()->setContent(text);
     scrollToBottom();
+}
+
+void ChatPage::searchInMessages(const QString &keyword)
+{
+    // 命中样式直接 setStyleSheet 在 MessageBubble 外层，#userBubble / #assistantBubble
+    // 选择器走级联匹配到内层气泡；favorite 是用 dynamic property 触发的 QSS 规则，
+    // 这里的内联样式会临时压住它，clearSearchHighlight() 一并清除恢复正常。
+    MessageBubble *firstMatch = nullptr;
+    for (auto *bubble : m_bubbles) {
+        if (bubble->content().contains(keyword, Qt::CaseInsensitive)) {
+            bubble->setStyleSheet("QWidget#userBubble, QWidget#assistantBubble { "
+                                  "border: 2px solid #ffd700; }");
+            if (!firstMatch) firstMatch = bubble;
+        } else {
+            bubble->setStyleSheet("");
+        }
+    }
+    if (firstMatch) {
+        m_scrollArea->ensureWidgetVisible(firstMatch);
+    }
+}
+
+void ChatPage::clearSearchHighlight()
+{
+    for (auto *bubble : m_bubbles) {
+        bubble->setStyleSheet("");
+    }
 }
 
 /**

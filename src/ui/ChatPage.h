@@ -16,6 +16,7 @@ class ElaComboBox;
 class ElaPushButton;
 class AppSettings;
 class AssistantLoadingWidget;
+class QLineEdit;
 
 class ChatPage : public QWidget
 {
@@ -61,6 +62,11 @@ public:
 
     void updateRoleNames(const QString &userName, const QString &assistantName);
     void refreshPromptTemplates();
+
+    // 消息搜索（Ctrl+F 触发）：对 m_bubbles 做大小写不敏感子串匹配，
+    // 命中的气泡加金色虚线边框，第一个命中滚到可见区。空 keyword 即清除高亮。
+    void searchInMessages(const QString &keyword);
+    void clearSearchHighlight();
 
 signals:
     void sendMessageRequested(const QString &text, const QList<Attachment> &attachments);
@@ -115,6 +121,10 @@ private:
     AssistantLoadingWidget *m_statusWidget = nullptr;   // 流式期间的眨眼/扫视加载头像 + 状态文字
     QWidget *m_attachPreviewWidget = nullptr;
     QHBoxLayout *m_attachPreviewLayout = nullptr;
+
+    // Ctrl+F 触发的消息搜索栏（默认隐藏，关闭按钮或清空输入恢复）
+    QWidget *m_searchBar = nullptr;
+    QLineEdit *m_searchEdit = nullptr;
 
     QList<MessageBubble *> m_bubbles;
     QList<Attachment> m_pendingAttachments;
