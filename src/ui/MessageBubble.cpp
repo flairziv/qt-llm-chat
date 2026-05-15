@@ -1,4 +1,5 @@
 #include "MessageBubble.h"
+#include "AsciiArtPage.h"
 #include "ImageViewerDialog.h"
 #include "ShimmerWidget.h"
 
@@ -9,6 +10,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHBoxLayout>
+#include <QImage>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -360,8 +362,10 @@ void MessageBubble::onContextMenu(const QPoint &pos)
     }
     QAction *saveSingleAction = nullptr;
     QHash<QAction *, int> saveSubActions;
+    QAction *asciiAction = nullptr;
     if (!imageIndices.isEmpty()) {
         menu.addSeparator();
+        asciiAction = menu.addAction(tr("Convert to ASCII"));
         if (imageIndices.size() == 1) {
             saveSingleAction = menu.addAction(tr("Save Image As..."));
         } else {
@@ -394,6 +398,20 @@ void MessageBubble::onContextMenu(const QPoint &pos)
         emit regenerateRequested(m_index);
     } else if (selected == deleteAction) {
         emit deleteFromHereRequested(m_index);
+    } else if (asciiAction && selected == asciiAction) {
+        // 取第一个图片附件转 ASCII（默认宽度 80 列 / 简版字符集），结果写剪贴板。
+        // 与 AsciiArtPage 一致的算法，但不切到该页面 —— 让用户在聊天上下文里就拿走文本。
+        for (const auto &att : m_attachments) {
+            if (att.type == Attachment::Image) {
+                QImage img;
+                img.loadFromData(att.fileData);
+                if (!img.isNull()) {
+                    const QString ascii = AsciiArtPage::convertToAscii(img, 80, false);
+                    QApplication::clipboard()->setText(ascii);
+                }
+                break;
+            }
+        }
     } else if ((saveSingleAction && selected == saveSingleAction)
                || saveSubActions.contains(selected)) {
         // 直接落盘 att.fileData：附件存的就是原始编码字节（PNG/JPEG），
