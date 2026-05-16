@@ -173,10 +173,19 @@ void ChatPage::setupUI()
     m_inputEdit = new QTextEdit(inputBar);
     m_inputEdit->setObjectName("chatInput");
     m_inputEdit->setPlaceholderText("Type a message... (Enter to send, Shift+Enter for newline)");
+    m_inputEdit->setMinimumHeight(44);
     m_inputEdit->setMaximumHeight(120);
     m_inputEdit->setFixedHeight(44);
     m_inputEdit->setAcceptDrops(false); // 拖拽统一由 ChatPage 处理，避免事件被 QTextEdit 吞掉
     m_inputEdit->installEventFilter(this);
+
+    // 输入框跟随内容自适应高度：单行时 44px、多行时按文档高度增长，封顶 120px。
+    // +12 是文档高度到 QTextEdit 实际高度的视觉补偿（边距 + 滚动条预留）。
+    connect(m_inputEdit, &QTextEdit::textChanged, this, [this]() {
+        const int docHeight = static_cast<int>(m_inputEdit->document()->size().height()) + 12;
+        const int newHeight = qBound(44, docHeight, 120);
+        m_inputEdit->setFixedHeight(newHeight);
+    });
 
     m_sendButton = new ElaPushButton("Send", inputBar);
     m_sendButton->setObjectName("sendButton");
