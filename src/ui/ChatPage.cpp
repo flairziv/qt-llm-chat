@@ -10,6 +10,7 @@
 #include <ElaTheme.h>
 #include <QApplication>
 #include <QBuffer>
+#include <QClipboard>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QFile>
@@ -284,6 +285,32 @@ bool ChatPage::eventFilter(QObject *obj, QEvent *event)
             && !(keyEvent->modifiers() & Qt::ShiftModifier)) {
             onSendClicked();
             return true;
+        }
+
+        // Ctrl+V：图片 / 文件 URL 直接吸成附件，纯文本仍走 QTextEdit 默认粘贴。
+        // 截图工具大多只放 imageData，不放 urls；从文件管理器复制的文件则只有 urls；
+        // 两条都要单独处理。处理失败（image.isNull / no local file）就 return false，
+        // 让默认粘贴尝试当作文本贴入，避免空 Ctrl+V 没反应。
+        if (keyEvent->key() == Qt::Key_V && (keyEvent->modifiers() & Qt::ControlModifier)) {
+            const QClipboard *clipboard = QApplication::clipboard();
+            const QMimeData *mimeData = clipboard->mimeData();
+            if (mimeData && mimeData->hasImage()) {
+                QImage image = qvariant_cast<QImage>(mimeData->imageData());
+                if (!image.isNull()) {
+                    addAttachmentFromImage(image);
+                    return true;
+                }
+            }
+            if (mimeData && mimeData->hasUrls()) {
+                bool hasFile = false;
+                for (const QUrl &url : mimeData->urls()) {
+                    if (url.isLocalFile()) {
+                        addAttachmentFromFile(url.toLocalFile());
+                        hasFile = true;
+                    }
+                }
+                if (hasFile) return true;
+            }
         }
     }
 
