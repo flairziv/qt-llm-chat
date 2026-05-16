@@ -8,6 +8,7 @@
 #include <ElaComboBox.h>
 #include <ElaPushButton.h>
 #include <ElaTheme.h>
+#include <QApplication>
 #include <QBuffer>
 #include <QDragEnterEvent>
 #include <QDropEvent>
@@ -21,6 +22,7 @@
 #include <QLineEdit>
 #include <QMimeData>
 #include <QPainter>
+#include <QPalette>
 #include <QResizeEvent>
 #include <QScrollBar>
 #include <QShortcut>
@@ -221,6 +223,16 @@ void ChatPage::setupUI()
         for (auto *bubble : m_bubbles) {
             if (bubble) bubble->rerenderForTheme();
         }
+        // 输入框 / 搜索框的 placeholder 颜色不是 QSS 控的，是 QPalette::PlaceholderText
+        // 角色。切到夜间时如果不重刷，会留着白天那种灰，在深背景上几乎看不见。
+        const QColor c = qApp->palette().color(QPalette::PlaceholderText);
+        for (QWidget *w : { static_cast<QWidget *>(m_inputEdit),
+                            static_cast<QWidget *>(m_searchEdit) }) {
+            if (!w) continue;
+            QPalette p = w->palette();
+            p.setColor(QPalette::PlaceholderText, c);
+            w->setPalette(p);
+        }
     });
 
     // Ctrl+= / Ctrl++ 放大；Ctrl+- 缩小；Ctrl+0 复位。Ctrl+wheel 走 wheelEvent。
@@ -240,6 +252,19 @@ void ChatPage::setupUI()
         m_searchEdit->setFocus();
         m_searchEdit->selectAll();
     });
+
+    // 首次 palette 同步：themeModeChanged 只在用户切主题时触发，启动时也得跑一次
+    // 才能让夜间模式下首次显示的 placeholder 颜色是正确的。
+    {
+        const QColor c = qApp->palette().color(QPalette::PlaceholderText);
+        for (QWidget *w : { static_cast<QWidget *>(m_inputEdit),
+                            static_cast<QWidget *>(m_searchEdit) }) {
+            if (!w) continue;
+            QPalette p = w->palette();
+            p.setColor(QPalette::PlaceholderText, c);
+            w->setPalette(p);
+        }
+    }
 }
 
 bool ChatPage::eventFilter(QObject *obj, QEvent *event)
