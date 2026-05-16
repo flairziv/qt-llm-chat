@@ -217,8 +217,8 @@ void MainWindow::setupPages()
 {
     setWindowTitle("LLMChat");
     resize(1000, 700);
-    setWindowIcon(QIcon(":/imgs/favicon.ico"));
-    setUserInfoCardPixmap(QPixmap(":/imgs/favicon.ico"));
+    setWindowIcon(QIcon(":/imgs/combined.ico"));
+    setUserInfoCardPixmap(QIcon(":/imgs/favicon.ico").pixmap(64, 64));
     setUserInfoCardTitle("LLMChat");
     setUserInfoCardSubTitle("flairziv@gmail.com");
     // 背景图：优先加载本地路径，为空或加载失败则用内置资源
