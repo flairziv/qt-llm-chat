@@ -15,6 +15,7 @@
 #include "ui/MainWindow.h"
 #include "core/AppSettings.h"
 #include "core/ToolRegistry.h"
+#include "core/tools/FileSystemTools.h"
 
 #ifdef Q_OS_WIN
 // 全局热键 ID
@@ -134,8 +135,9 @@ int main(int argc, char *argv[])
 
     AppSettings settings;
 
-    // 工具注册表 skeleton：后续 commit 才把具体工具填进来。启动日志先打一次
-    // 当前已注册的工具列表，确认 ToolRegistry 单例编译链通。
+    // 把内置 LLM 工具注册到全局 ToolRegistry。注册完成后日志打印一次当前
+    // 已注册的工具名列表，方便启动期确认编译链通且工具集如预期。
+    registerFileSystemTools();
     qInfo() << "Tool registry initialized:" << ToolRegistry::instance().toolNames();
 
     MainWindow mainWindow(&settings);

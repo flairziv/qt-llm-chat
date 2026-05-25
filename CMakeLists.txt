@@ -22,6 +22,7 @@ set(SOURCES
     src/core/AppSettings.cpp
     src/core/EdgeTTSProvider.cpp
     src/core/ToolRegistry.cpp
+    src/core/tools/FileSystemTools.cpp
     src/ui/MainWindow.cpp
     src/ui/ChatPage.cpp
     src/ui/AnalyticsPage.cpp
@@ -51,6 +52,7 @@ set(HEADERS
     src/core/EdgeTTSProvider.h
     src/core/Tool.h
     src/core/ToolRegistry.h
+    src/core/tools/FileSystemTools.h
     src/ui/MainWindow.h
     src/ui/ChatPage.h
     src/ui/AnalyticsPage.h
