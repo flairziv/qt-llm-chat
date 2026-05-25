@@ -16,6 +16,7 @@
 #include "core/AppSettings.h"
 #include "core/ToolRegistry.h"
 #include "core/tools/FileSystemTools.h"
+#include "core/tools/HttpFetchTool.h"
 
 #ifdef Q_OS_WIN
 // 全局热键 ID
@@ -138,6 +139,7 @@ int main(int argc, char *argv[])
     // 把内置 LLM 工具注册到全局 ToolRegistry。注册完成后日志打印一次当前
     // 已注册的工具名列表，方便启动期确认编译链通且工具集如预期。
     registerFileSystemTools();
+    registerHttpFetchTool();
     qInfo() << "Tool registry initialized:" << ToolRegistry::instance().toolNames();
 
     MainWindow mainWindow(&settings);

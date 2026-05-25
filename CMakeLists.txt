@@ -23,6 +23,7 @@ set(SOURCES
     src/core/EdgeTTSProvider.cpp
     src/core/ToolRegistry.cpp
     src/core/tools/FileSystemTools.cpp
+    src/core/tools/HttpFetchTool.cpp
     src/ui/MainWindow.cpp
     src/ui/ChatPage.cpp
     src/ui/AnalyticsPage.cpp
@@ -53,6 +54,7 @@ set(HEADERS
     src/core/Tool.h
     src/core/ToolRegistry.h
     src/core/tools/FileSystemTools.h
+    src/core/tools/HttpFetchTool.h
     src/ui/MainWindow.h
     src/ui/ChatPage.h
     src/ui/AnalyticsPage.h
