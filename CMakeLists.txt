@@ -21,6 +21,7 @@ set(SOURCES
     src/core/SessionManager.cpp
     src/core/AppSettings.cpp
     src/core/EdgeTTSProvider.cpp
+    src/core/ToolRegistry.cpp
     src/ui/MainWindow.cpp
     src/ui/ChatPage.cpp
     src/ui/AnalyticsPage.cpp
@@ -48,6 +49,8 @@ set(HEADERS
     src/core/SessionManager.h
     src/core/AppSettings.h
     src/core/EdgeTTSProvider.h
+    src/core/Tool.h
+    src/core/ToolRegistry.h
     src/ui/MainWindow.h
     src/ui/ChatPage.h
     src/ui/AnalyticsPage.h
