@@ -390,6 +390,20 @@ QJsonObject ChatSession::toJson() const
             }
             m["attachments"] = attArray;
         }
+        if (!msg.toolCalls.isEmpty()) {
+            QJsonArray tcArray;
+            for (const auto &tc : msg.toolCalls) {
+                tcArray.append(tc.toJson());
+            }
+            m["tool_calls"] = tcArray;
+        }
+        if (!msg.toolResults.isEmpty()) {
+            QJsonArray trArray;
+            for (const auto &tr : msg.toolResults) {
+                trArray.append(tr.toJson());
+            }
+            m["tool_results"] = trArray;
+        }
         msgArray.append(m);
     }
     obj["messages"] = msgArray;
@@ -438,6 +452,18 @@ ChatSession* ChatSession::fromJson(const QJsonObject &obj,
             QJsonArray attArray = m["attachments"].toArray();
             for (const auto &attVal : attArray) {
                 msg.attachments.append(Attachment::fromJson(attVal.toObject(), rootDataDir));
+            }
+        }
+        if (m.contains("tool_calls")) {
+            QJsonArray tcArray = m["tool_calls"].toArray();
+            for (const auto &tcVal : tcArray) {
+                msg.toolCalls.append(ToolCall::fromJson(tcVal.toObject()));
+            }
+        }
+        if (m.contains("tool_results")) {
+            QJsonArray trArray = m["tool_results"].toArray();
+            for (const auto &trVal : trArray) {
+                msg.toolResults.append(ToolResult::fromJson(trVal.toObject()));
             }
         }
         session->m_messages.append(msg);

@@ -6,6 +6,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QByteArray>
+#include "Tool.h"   // ToolCall / ToolResult —— assistant 工具调用与工具结果数据结构
 
 /**
  * @brief 附件数据结构（图片、文档或文本文件）
@@ -53,6 +54,8 @@ struct Attachment {
  * reasoning   - assistant 的"思考链"原文（Claude thinking / OpenAI reasoning_content
  *               / DeepSeek-style 等）。可为空字符串表示没有 reasoning 块。
  * attachments - 附件列表（图片、文件等）
+ * toolCalls   - assistant 本轮发起的工具调用（Claude tool_use 块）。普通消息为空。
+ * toolResults - 工具执行结果（tool_result 块），下一轮随对话历史回传给模型。普通消息为空。
  * timestamp   - 消息时间戳
  * favorite    - 是否收藏
  */
@@ -61,6 +64,8 @@ struct ChatMessage {
     QString content;
     QString reasoning;
     QList<Attachment> attachments;
+    QList<ToolCall> toolCalls;
+    QList<ToolResult> toolResults;
     QDateTime timestamp;
     bool favorite = false;
 };
