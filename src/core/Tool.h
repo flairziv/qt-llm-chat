@@ -37,6 +37,34 @@ struct ToolResult {
     QString toolUseId;
     QString content;
     bool isError = false;
+
+    /**
+     * @brief 序列化为 session JSON 中的 tool_result 块
+     *
+     * 键名沿用 Claude 协议的 snake_case（tool_use_id / is_error），人读 session
+     * 文件时能直接对应 API 文档。is_error 仅在为真时写出——与 favorite 字段
+     * 同一风格：默认值不落盘，保持 JSON 精简。
+     */
+    QJsonObject toJson() const
+    {
+        QJsonObject obj;
+        obj["tool_use_id"] = toolUseId;
+        obj["content"] = content;
+        if (isError) {
+            obj["is_error"] = true;
+        }
+        return obj;
+    }
+
+    /** @brief 从 session JSON 的 tool_result 块还原；缺字段走默认值，向后兼容 */
+    static ToolResult fromJson(const QJsonObject &obj)
+    {
+        ToolResult r;
+        r.toolUseId = obj["tool_use_id"].toString();
+        r.content = obj["content"].toString();
+        r.isError = obj["is_error"].toBool(false);
+        return r;
+    }
 };
 
 /**
@@ -50,6 +78,32 @@ struct ToolCall {
     QString id;
     QString name;
     QString argsJson;   // 完整 JSON 对象字符串（content_block_stop 后才完整）
+
+    /**
+     * @brief 序列化为 session JSON 中的 tool_use 块
+     *
+     * argsJson 原样写成字符串字段 "args"，不在此 parse 成对象——ToolCall 全程
+     * 以 JSON 字符串为规范形态，C3 拼 Claude 请求体时才 parse 成 input 对象，
+     * 保证落盘 / 重放无损。
+     */
+    QJsonObject toJson() const
+    {
+        QJsonObject obj;
+        obj["id"] = id;
+        obj["name"] = name;
+        obj["args"] = argsJson;
+        return obj;
+    }
+
+    /** @brief 从 session JSON 的 tool_use 块还原 */
+    static ToolCall fromJson(const QJsonObject &obj)
+    {
+        ToolCall c;
+        c.id = obj["id"].toString();
+        c.name = obj["name"].toString();
+        c.argsJson = obj["args"].toString();
+        return c;
+    }
 };
 
 /**
