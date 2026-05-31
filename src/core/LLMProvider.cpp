@@ -55,11 +55,16 @@ void LLMProvider::sendStreamingRequest(
  * 调用 QNetworkReply::abort() 取消请求，
  * 随后通过 deleteLater() 安全释放回复对象，并重置指针。
  * 同时停止退避中的重试定时器（若有），避免延迟期被 Esc 中止后还冒出请求。
+ *
+ * 也清空 m_pendingToolCalls：中止意味着放弃本轮交换，已解析出的 tool_use 不能
+ * 再驱动 agentic 循环；更要紧的是若把它当作 assistant 消息落盘却没有对应的
+ * tool_result 回传，下一次请求体会带一个悬空 tool_use，Claude 会 400。
  */
 void LLMProvider::abort()
 {
     if (m_retryTimer) m_retryTimer->stop();
     m_retryAttempt = 0;
+    m_pendingToolCalls.clear();
     if (m_currentReply) {
         m_currentReply->abort();
         m_currentReply->deleteLater();

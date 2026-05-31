@@ -15,6 +15,7 @@
 #include "core/ChatSession.h"
 #include "core/EdgeTTSProvider.h"
 #include "core/LLMProvider.h"
+#include "core/ToolRegistry.h"
 
 #include <QRegularExpression>
 #include <QCoreApplication>
@@ -734,6 +735,9 @@ void MainWindow::onSendMessage(const QString &text, const QList<Attachment> &att
     session->addMessage(userMsg);
     m_chatPage->addMessageBubble("user", text, attachments);
 
+    // 新的用户回合：复位 agentic 工具循环计数（工具续传不复位，只有用户发起才清零）
+    m_agenticIterations = 0;
+
     // 预建空 assistant 气泡 + 重置流式状态 + 发起请求（与 onMessageRegenerate 共用）
     beginStreamingForActiveSession();
 }
@@ -872,21 +876,6 @@ void MainWindow::onImageGenerationStarted(int count)
  */
 void MainWindow::onResponseFinished(const QString &fullResponse)
 {
-    m_isStreaming = false;
-    m_chatPage->setInputEnabled(true);
-    m_chatPage->setLoading(false);
-
-    // 计算耗时 + 粗估 token 数（≈ 4 字符/token），状态栏显示 3 秒后自动清。
-    // singleShot 里检查 m_isStreaming：3 秒内用户又发起一轮就让那轮的状态文本接管。
-    const qint64 elapsedMs = m_requestStartTime.msecsTo(QDateTime::currentDateTime());
-    const double elapsedSec = elapsedMs / 1000.0;
-    const int estimatedTokens = fullResponse.length() / 4;
-    m_chatPage->setStatusText(
-        QStringLiteral("%1 tokens | %2s").arg(estimatedTokens).arg(elapsedSec, 0, 'f', 1));
-    QTimer::singleShot(3000, this, [this]() {
-        if (!m_isStreaming) m_chatPage->setStatusText("");
-    });
-
     // 图片生成期间挂在气泡上的 ShimmerWidget 占位符必须收掉，否则会一直停留
     // 在 "正在画" 状态。即便本轮没启用图像生成，clearImagePlaceholdersInLastBubble
     // 在空列表上是 no-op，调用代价可忽略。
@@ -921,7 +910,16 @@ void MainWindow::onResponseFinished(const QString &fullResponse)
         m_chatPage->replaceLastBubbleContent(cleanResponse);
     }
 
-    // 保存 assistant 消息并持久化会话（保存干净文本，不含情绪标签）
+    // 本轮模型是否发起了工具调用。abort()（Esc / 设置变更）会清空 pendingToolCalls，
+    // 所以中止路径下这里恒为空 —— assistant 消息按纯文本保存，不会落下一个没有
+    // 对应 tool_result 的悬空 tool_use（那会让下一次请求被 Claude 400）。
+    const QList<ToolCall> toolCalls =
+        m_provider ? m_provider->pendingToolCalls() : QList<ToolCall>();
+    const bool runTools = !toolCalls.isEmpty();
+
+    // 保存 assistant 消息并持久化会话（保存干净文本，不含情绪标签）。
+    // 仅在确实要执行工具时把 toolCalls 一并写入 —— 保证 tool_use 与随后追加的
+    // tool_result 成对出现，重放 / 续传时请求体合法。
     ChatSession *session = m_sessionManager->activeSession();
     if (session) {
         ChatMessage assistantMsg;
@@ -929,22 +927,92 @@ void MainWindow::onResponseFinished(const QString &fullResponse)
         assistantMsg.content = cleanResponse;
         assistantMsg.reasoning = m_reasoningBuffer;
         assistantMsg.attachments = generatedAttachments;
+        if (runTools) assistantMsg.toolCalls = toolCalls;
         session->addMessage(assistantMsg);
         m_sessionManager->saveSession(session);
 
         // 当前会话刚有新回复 → 推到列表顶部，最近活跃优先
         m_chatPage->moveSessionToTop(session->id());
+    }
 
-        // 首轮对话完成（user + assistant 共 2 条）→ 自动生成会话标题
-        if (session->messages().size() == 2) {
-            generateSessionTitle(session);
-        }
+    // 工具路径：执行工具 + 回传结果 + 继续 agentic 循环，跳过下面的「本轮结束」收尾
+    //（不恢复输入、不报 token 数、不生成标题、不朗读 —— 这些都留给最终回合）。
+    if (runTools && session) {
+        runToolCallsAndContinue(toolCalls);
+        return;
+    }
+
+    // ---- 最终回合结束：恢复输入状态 + 状态栏耗时 + 自动标题 + TTS ----
+    m_isStreaming = false;
+    m_chatPage->setInputEnabled(true);
+    m_chatPage->setLoading(false);
+
+    // 计算耗时 + 粗估 token 数（≈ 4 字符/token），状态栏显示 3 秒后自动清。
+    // singleShot 里检查 m_isStreaming：3 秒内用户又发起一轮就让那轮的状态文本接管。
+    const qint64 elapsedMs = m_requestStartTime.msecsTo(QDateTime::currentDateTime());
+    const double elapsedSec = elapsedMs / 1000.0;
+    const int estimatedTokens = fullResponse.length() / 4;
+    m_chatPage->setStatusText(
+        QStringLiteral("%1 tokens | %2s").arg(estimatedTokens).arg(elapsedSec, 0, 'f', 1));
+    QTimer::singleShot(3000, this, [this]() {
+        if (!m_isStreaming) m_chatPage->setStatusText("");
+    });
+
+    // 首轮对话完成（user + assistant 共 2 条）→ 自动生成会话标题
+    if (session && session->messages().size() == 2) {
+        generateSessionTitle(session);
     }
 
     // TTS 朗读 AI 回复（预连接已就绪，直接发 SSML 零延迟）
     if (m_settings->ttsEnabled() && !cleanResponse.isEmpty()) {
         m_ttsProvider->synthesize(cleanResponse, m_settings->ttsVoice());
     }
+}
+
+/**
+ * @brief 执行模型发起的工具调用，把结果回传并继续 agentic 循环
+ *
+ * onResponseFinished 发现本轮有未决 tool_use 时调用：逐个跑
+ * ToolRegistry::execute（C3 阶段直接执行，不弹审批；审批 UI 留到 C6），把
+ * ToolResult 回填 toolUseId 后拼成一条 user 消息（携带 tool_result 块）追加进
+ * 会话并持久化，再 beginStreamingForActiveSession 让模型基于工具结果继续。
+ *
+ * 此时 session->messages() 已含 tool_use + tool_result，请求体构造时会还原成
+ * Claude 协议的内容块（见 ClaudeProvider::doSendStreamingRequest）。
+ *
+ * 失控保护：每轮 ++m_agenticIterations，超过 kMaxAgenticIterations 就执行完工具
+ * 即停 —— 会话里 tool_use 与 tool_result 仍成对（合法），只是不再自动把结果喂回
+ * 模型，避免模型与工具间无限往返。同步执行会短暂阻塞 UI（fetch_url 尤甚），
+ * 异步化留到 C8。
+ */
+void MainWindow::runToolCallsAndContinue(const QList<ToolCall> &calls)
+{
+    ChatSession *session = m_sessionManager->activeSession();
+    if (!session) return;
+
+    // 执行每个工具，结果回填到对应 tool_use 的 id，拼成一条 user(tool_result) 消息
+    ChatMessage toolMsg;
+    toolMsg.role = "user";
+    for (const ToolCall &call : calls) {
+        ToolResult result = ToolRegistry::instance().execute(call.name, call.argsJson);
+        result.toolUseId = call.id;
+        toolMsg.toolResults.append(result);
+    }
+    session->addMessage(toolMsg);
+    m_sessionManager->saveSession(session);
+
+    // 失控保护：超过上限就停在这 —— 工具已执行、结果已落盘（tool_use/tool_result
+    // 成对，会话合法），只是不再自动把结果喂回模型，用户可手动续。
+    if (++m_agenticIterations > kMaxAgenticIterations) {
+        m_isStreaming = false;
+        m_chatPage->setInputEnabled(true);
+        m_chatPage->setLoading(false);
+        m_chatPage->setStatusText("Tool loop limit reached");
+        return;
+    }
+
+    // 把工具结果作为新一轮历史回传：预建新 assistant 气泡 + 重置流式状态 + 发请求
+    beginStreamingForActiveSession();
 }
 
 /**
@@ -1178,6 +1246,9 @@ void MainWindow::onMessageRegenerate(int index)
     session->truncateFrom(index);
     m_sessionManager->saveSession(session);
     m_chatPage->loadMessages(session->messages());
+
+    // 新的用户回合（重新生成）：复位 agentic 工具循环计数
+    m_agenticIterations = 0;
 
     // 预建空 assistant 气泡 + 重置流式状态 + 发起请求（与 onSendMessage 共用）
     beginStreamingForActiveSession();

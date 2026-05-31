@@ -77,6 +77,15 @@ private:
     void abortStreamingAndSavePartial();        // Esc 中止流式：保留已收到的 partial reply
     void beginStreamingForActiveSession();      // 复用：预建气泡 + 重置状态 + 发起流式请求
     /**
+     * @brief 执行模型发起的工具调用，回传结果并继续 agentic 循环
+     *
+     * onResponseFinished 检测到本轮有未决 tool_use（且非中止）时调用：跑工具、
+     * 把 tool_result 拼成 user 消息追加进会话、再发起下一轮请求。每轮自增
+     * m_agenticIterations，超过 kMaxAgenticIterations 后执行完工具即停（不再回传），
+     * 防止模型与工具间失控往返。详见 MainWindow.cpp 实现处注释。
+     */
+    void runToolCallsAndContinue(const QList<ToolCall> &calls);
+    /**
      * @brief 首轮对话结束后自动生成简短会话标题
      *
      * 触发条件：onResponseFinished 收到 assistant 消息后会话总条数恰为 2
@@ -123,6 +132,12 @@ private:
     // 请求计时：beginStreamingForActiveSession 时记录起点，onResponseFinished
     // 计算耗时并和粗估 token 数一起显示在状态栏 3 秒。
     QDateTime m_requestStartTime;
+
+    // Agentic 工具循环：每个用户回合（onSendMessage / onMessageRegenerate）置 0，
+    // 每次「执行工具→回传结果→再请求」自增。达到 kMaxAgenticIterations 后执行完
+    // 工具即停（不再回传），防止模型与工具间无限往返。
+    int m_agenticIterations = 0;
+    static constexpr int kMaxAgenticIterations = 25;
 
     // TTS 相关
     EdgeTTSProvider *m_ttsProvider = nullptr;    // Edge TTS 语音合成器
