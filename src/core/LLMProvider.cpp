@@ -196,6 +196,7 @@ void LLMProvider::onReplyError(QNetworkReply::NetworkError error)
         m_currentReply = nullptr;
         m_sseParser.reset();
         m_accumulatedResponse.clear();
+        m_pendingToolCalls.clear();
 
         emit retryScheduled(m_retryAttempt, kMaxRetries, delayMs);
         if (m_retryTimer) {
@@ -210,6 +211,7 @@ void LLMProvider::onReplyError(QNetworkReply::NetworkError error)
     m_currentReply = nullptr;
     m_sseParser.reset();
     m_accumulatedResponse.clear();
+    m_pendingToolCalls.clear();
     m_retryAttempt = 0;
 }
 

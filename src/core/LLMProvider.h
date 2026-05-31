@@ -74,6 +74,15 @@ public:
     QString accumulatedResponse() const { return m_accumulatedResponse; }
 
     /**
+     * @brief 本轮流式响应中模型发起的工具调用（Claude tool_use 块）
+     *
+     * 流式解析过程中累积；responseFinished 时由 MainWindow 读取，决定是否进入
+     * 工具执行 + 结果回传的 agentic 循环。普通回复返回空列表。下一次
+     * doSendStreamingRequest 开始时清空，5xx / 429 重试前也清空。
+     */
+    QList<ToolCall> pendingToolCalls() const { return m_pendingToolCalls; }
+
+    /**
      * @brief 从 API 错误响应体中提取人类可读的 message
      *
      * 三家主流 LLM 厂商错误响应格式都是 `{"error":{"message":"..."}}` 或顶层 `{"message":"..."}`，
@@ -152,6 +161,7 @@ protected:
     QNetworkAccessManager *m_nam;              // 共享的网络访问管理器
     QNetworkReply *m_currentReply = nullptr;   // 当前活跃的网络回复对象
     QString m_accumulatedResponse;             // 累积的完整响应文本
+    QList<ToolCall> m_pendingToolCalls;        // 本轮已解析完成的工具调用（tool_use）
     SSEParser m_sseParser;                     // SSE 事件流解析器
 
     /**

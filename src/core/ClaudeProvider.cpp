@@ -54,6 +54,8 @@ void ClaudeProvider::doSendStreamingRequest(
 {
     m_accumulatedResponse.clear();
     m_sseParser.reset();
+    m_pendingToolCalls.clear();
+    m_toolUseBlocks.clear();
 
     if (m_apiKey.isEmpty()) {
         emit errorOccurred("Claude API key is not configured. Please set it in Settings.");
@@ -177,7 +179,18 @@ LLMProviderParseResult ClaudeProvider::parseSSEData(const QByteArray &data)
     QString type = obj["type"].toString();
 
     LLMProviderParseResult result;
-    if (type == "content_block_delta") {
+    if (type == "content_block_start") {
+        // tool_use 块起始：记下 id / name，开一个待填充的 ToolCall。
+        // 文本 / thinking 块的 start 不带工具信息，忽略即可。
+        const QJsonObject block = obj["content_block"].toObject();
+        if (block["type"].toString() == "tool_use") {
+            ToolCall call;
+            call.id = block["id"].toString();
+            call.name = block["name"].toString();
+            call.argsJson.clear();   // input 由后续 input_json_delta 拼出
+            m_toolUseBlocks.insert(obj["index"].toInt(), call);
+        }
+    } else if (type == "content_block_delta") {
         QJsonObject delta = obj["delta"].toObject();
         const QString deltaType = delta["type"].toString();
         if (deltaType == "text_delta") {
@@ -185,8 +198,25 @@ LLMProviderParseResult ClaudeProvider::parseSSEData(const QByteArray &data)
         } else if (deltaType == "thinking_delta") {
             // 扩展思考块的增量内容（adaptive thinking 启用时由模型产出）
             result.reasoningToken = delta["thinking"].toString();
+        } else if (deltaType == "input_json_delta") {
+            // 工具入参的 JSON 文本增量，按 index 拼到对应 tool_use 块上
+            auto it = m_toolUseBlocks.find(obj["index"].toInt());
+            if (it != m_toolUseBlocks.end()) {
+                it->argsJson += delta["partial_json"].toString();
+            }
         }
         // signature_delta 等其他类型：当前不展示，跳过
+    } else if (type == "content_block_stop") {
+        // content block 收尾：是 tool_use 块就定稿，移入基类 m_pendingToolCalls。
+        auto it = m_toolUseBlocks.find(obj["index"].toInt());
+        if (it != m_toolUseBlocks.end()) {
+            ToolCall call = it.value();
+            if (call.argsJson.isEmpty()) {
+                call.argsJson = QStringLiteral("{}");   // 无入参工具：补空对象，便于后续 parse
+            }
+            m_pendingToolCalls.append(call);
+            m_toolUseBlocks.erase(it);
+        }
     }
     return result;
 }

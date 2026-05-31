@@ -1,5 +1,6 @@
 #pragma once
 #include "LLMProvider.h"
+#include <QHash>
 
 class ClaudeProvider : public LLMProvider
 {
@@ -34,4 +35,14 @@ private:
     QString m_baseUrl;
     QString m_model;
     QString m_reasoningEffort;
+
+    /**
+     * @brief 流式解析中尚未完成的 tool_use 块，按 content block index 索引
+     *
+     * Claude 把每个 tool_use 拆成 content_block_start（带 id / name）→ 若干
+     * input_json_delta（拼 input JSON）→ content_block_stop，解析跨多条 SSE
+     * event，故需在此累积；content_block_stop 时把定稿的 ToolCall 移入基类
+     * m_pendingToolCalls。
+     */
+    QHash<int, ToolCall> m_toolUseBlocks;
 };
