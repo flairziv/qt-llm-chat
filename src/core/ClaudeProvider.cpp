@@ -1,4 +1,5 @@
 #include "ClaudeProvider.h"
+#include "ToolRegistry.h"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -145,6 +146,23 @@ void ClaudeProvider::doSendStreamingRequest(
         msgArray.append(m);
     }
     body["messages"] = msgArray;
+
+    // 把已注册的内置工具作为 tools 数组随请求发出，模型据此决定是否发起 tool_use。
+    // Claude tools 协议的每个条目形如 {name, description, input_schema}，三个字段
+    // 直接取自 Tool 结构。tool_use 块的流式解析在 C3b、执行与回传在 C3c 接入；
+    // 这里只负责让模型「看见」工具。无工具注册时不写 tools 字段，保持请求体精简。
+    const QList<Tool> tools = ToolRegistry::instance().availableTools();
+    if (!tools.isEmpty()) {
+        QJsonArray toolsArray;
+        for (const auto &tool : tools) {
+            QJsonObject def;
+            def["name"] = tool.name;
+            def["description"] = tool.description;
+            def["input_schema"] = tool.inputSchema;
+            toolsArray.append(def);
+        }
+        body["tools"] = toolsArray;
+    }
 
     QNetworkReply *reply = m_nam->post(request, QJsonDocument(body).toJson());
     connectReplySignals(reply);
