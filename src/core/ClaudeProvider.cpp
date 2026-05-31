@@ -97,16 +97,33 @@ void ClaudeProvider::doSendStreamingRequest(
         QJsonObject m;
         m["role"] = msg.role;
 
-        if (msg.attachments.isEmpty()) {
+        const bool needsBlocks = !msg.attachments.isEmpty()
+                                 || !msg.toolCalls.isEmpty()
+                                 || !msg.toolResults.isEmpty();
+        if (!needsBlocks) {
             // 纯文本消息：content 为字符串
             m["content"] = msg.content;
         } else {
-            // 多模态消息：content 为数组，包含 image/document/text 内容块
-            // Claude API 格式：
-            //   image    → {"type":"image", "source":{"type":"base64","media_type":"...","data":"..."}}
-            //   document → {"type":"document", "source":{"type":"base64","media_type":"...","data":"..."}}
-            //   text     → {"type":"text", "text":"..."}
+            // 多模态 / 工具消息：content 为数组，按 Claude 协议拼内容块：
+            //   tool_result → {"type":"tool_result","tool_use_id":"...","content":"...","is_error":bool}
+            //   image       → {"type":"image","source":{"type":"base64","media_type":"...","data":"..."}}
+            //   document    → {"type":"document","source":{...}}
+            //   text        → {"type":"text","text":"..."}
+            //   tool_use    → {"type":"tool_use","id":"...","name":"...","input":{...}}
             QJsonArray contentArray;
+
+            // tool_result 块放最前：Claude 要求带 tool_use 的 assistant turn 之后的
+            // user turn 以 tool_result 打头，tool_use_id 与对应 tool_use 一一对应。
+            for (const auto &tr : msg.toolResults) {
+                QJsonObject block;
+                block["type"] = "tool_result";
+                block["tool_use_id"] = tr.toolUseId;
+                block["content"] = tr.content;
+                if (tr.isError) {
+                    block["is_error"] = true;
+                }
+                contentArray.append(block);
+            }
 
             for (const auto &att : msg.attachments) {
                 if (att.type == Attachment::Image) {
@@ -140,6 +157,17 @@ void ClaudeProvider::doSendStreamingRequest(
                 textBlock["type"] = "text";
                 textBlock["text"] = fullText;
                 contentArray.append(textBlock);
+            }
+
+            // tool_use 块放文本之后：assistant turn 先给可选叙述文本，再给工具调用。
+            // argsJson 落盘时是字符串，这里 parse 回 input 对象，重放无损。
+            for (const auto &tc : msg.toolCalls) {
+                QJsonObject block;
+                block["type"] = "tool_use";
+                block["id"] = tc.id;
+                block["name"] = tc.name;
+                block["input"] = QJsonDocument::fromJson(tc.argsJson.toUtf8()).object();
+                contentArray.append(block);
             }
 
             m["content"] = contentArray;
