@@ -36,6 +36,9 @@ public:
     void replaceLastBubbleMessage(const QString &text, const QList<Attachment> &attachments);
     // 整段替换最后一个气泡的 reasoning 文本（loadMessages / 重试路径）
     void replaceLastBubbleReasoning(const QString &reasoning);
+    // 把本轮工具调用 + 结果挂到最后一个气泡（assistant tool_use 气泡）的工具区块。
+    // 合成的 tool_result 消息本身不单独成气泡，结果合并到这里展示。
+    void addToolDataToLastBubble(const QList<ToolCall> &calls, const QList<ToolResult> &results);
     // 图片生成占位符（ShimmerWidget）：响应完成 / 出错任一路径都必须 clear，
     // MainWindow::onResponseFinished / onProviderError / abortStreamingAndSavePartial 已覆盖
     void addImagePlaceholderToLastBubble(int count = 1);

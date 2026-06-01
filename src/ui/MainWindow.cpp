@@ -1001,6 +1001,11 @@ void MainWindow::runToolCallsAndContinue(const QList<ToolCall> &calls)
     session->addMessage(toolMsg);
     m_sessionManager->saveSession(session);
 
+    // 把本轮 tool_use + tool_result 合并显示到刚结束流式的 assistant 气泡的工具
+    // 折叠区块（合成的 tool_result 消息本身不单独成气泡）。放在失控保护检查之前，
+    // 让「继续下一轮」和「达到上限即停」两条路径都能看到工具结果。
+    m_chatPage->addToolDataToLastBubble(calls, toolMsg.toolResults);
+
     // 失控保护：超过上限就停在这 —— 工具已执行、结果已落盘（tool_use/tool_result
     // 成对，会话合法），只是不再自动把结果喂回模型，用户可手动续。
     if (++m_agenticIterations > kMaxAgenticIterations) {

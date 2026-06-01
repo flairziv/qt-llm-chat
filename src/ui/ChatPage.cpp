@@ -506,6 +506,16 @@ void ChatPage::appendReasoningToLastBubble(const QString &token)
     scrollToBottom();
 }
 
+void ChatPage::addToolDataToLastBubble(const QList<ToolCall> &calls,
+                                       const QList<ToolResult> &results)
+{
+    if (m_bubbles.isEmpty()) {
+        return;
+    }
+    m_bubbles.last()->setToolData(calls, results);
+    scrollToBottom();
+}
+
 void ChatPage::addImagePlaceholderToLastBubble(int count)
 {
     if (m_bubbles.isEmpty()) return;
@@ -608,8 +618,26 @@ void ChatPage::loadMessages(const QList<ChatMessage> &messages)
     clearMessages();
     for (int i = 0; i < messages.size(); ++i) {
         const ChatMessage &msg = messages.at(i);
+
+        // 合成的 tool_result 消息（role=user、只含 toolResults、无正文）不单独成气泡：
+        // 它的结果会合并进上一条 assistant(tool_use) 气泡的工具区块，这里跳过，
+        // 否则会渲染出一个空的右对齐 "You" 气泡。
+        if (msg.role == "user" && !msg.toolResults.isEmpty() && msg.content.isEmpty()) {
+            continue;
+        }
+
         addMessageBubble(msg.role, msg.content, msg.attachments, i, msg.favorite,
                          msg.timestamp, msg.reasoning);
+
+        // assistant 本轮发起过 tool_use：把下一条消息里配对的 tool_result 一并挂上，
+        // 调用与结果在同一个气泡里成对展示。
+        if (msg.role == "assistant" && !msg.toolCalls.isEmpty()) {
+            QList<ToolResult> results;
+            if (i + 1 < messages.size()) {
+                results = messages.at(i + 1).toolResults;
+            }
+            m_bubbles.last()->setToolData(msg.toolCalls, results);
+        }
     }
 }
 

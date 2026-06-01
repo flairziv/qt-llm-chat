@@ -66,6 +66,17 @@ public:
     /** @brief 当前 reasoning 文本（用于持久化 / 测试） */
     QString reasoning() const { return m_reasoning; }
 
+    // ===== 工具调用（tool_use / tool_result）折叠区块 =====
+    /**
+     * @brief 把本轮工具调用与执行结果写入气泡（Assistant 气泡专用）
+     *
+     * calls 来自 assistant 消息的 tool_use 块；results 是紧随其后的合成 user
+     * 消息里的 tool_result，按 toolUseId 与 calls 配对。两者合并显示成一个
+     * "🔧" 折叠块——这样 tool_result 不必单独渲染成一个空的 user 气泡。
+     * 流式途中结果尚未就绪时可只传 calls、results 留空，则仅显示调用本身。
+     */
+    void setToolData(const QList<ToolCall> &calls, const QList<ToolResult> &results);
+
     // ===== 图片生成占位符 =====
     /** @brief 在气泡里插入一个 ShimmerWidget 占位符（用于图片生成等待期） */
     void addImagePlaceholder();
@@ -93,6 +104,8 @@ private:
     QWidget *createAttachmentWidget(const Attachment &attachment, int idx);
     void buildReasoningSection();   // setupUI 时构造（assistant only）
     void updateReasoningUi();       // 根据 m_reasoning + collapse 状态刷新 header / body / 可见性
+    void buildToolSection();        // setupUI 时构造（assistant only）
+    void updateToolUi();            // 根据 m_toolCalls + m_toolResults + collapse 状态刷新
     void updateTimestampDisplay();
     static QString relativeTime(const QDateTime &dt);
 
@@ -122,6 +135,14 @@ private:
     QToolButton *m_reasoningHeader = nullptr;
     QLabel *m_reasoningBody = nullptr;
     bool m_reasoningCollapsed = true;   // 默认折叠：长 thinking 块不抢占视觉
+
+    // 工具调用折叠区块（仅 Assistant 角色、本轮发起过 tool_use 时可见）
+    QList<ToolCall> m_toolCalls;
+    QList<ToolResult> m_toolResults;
+    QWidget *m_toolContainer = nullptr;
+    QToolButton *m_toolHeader = nullptr;
+    QLabel *m_toolBody = nullptr;
+    bool m_toolCollapsed = true;        // 默认折叠：工具输出（尤其 fetch_url）可能很长
 
     // 图片生成等待期的占位符。rebuildAttachmentWidgets 把 layout 清光时
     // 这些指针随之 deleteLater，列表必须紧跟着 clear() 避免悬空。

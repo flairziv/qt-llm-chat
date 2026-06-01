@@ -11,11 +11,13 @@
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QImage>
+#include <QJsonDocument>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPixmap>
 #include <QStandardPaths>
+#include <QStringList>
 #include <QStyle>
 #include <QToolButton>
 #include <ElaTheme.h>
@@ -136,10 +138,12 @@ void MessageBubble::setupUI()
     // Reasoning 折叠区块仅 Assistant 角色构造；rebuildAttachmentWidgets 会把它放在 layout 顶部
     if (m_role == Assistant) {
         buildReasoningSection();
+        buildToolSection();
     }
 
     rebuildAttachmentWidgets();
     updateReasoningUi();
+    updateToolUi();
 
     // 角色行：QHBoxLayout 把 m_roleLabel + m_timeLabel 排到一起，stretch 控制对齐
     QHBoxLayout *roleRow = new QHBoxLayout;
@@ -181,8 +185,9 @@ void MessageBubble::rebuildAttachmentWidgets()
         QLayoutItem *item = m_bubbleLayout->takeAt(0);
         QWidget *w = item->widget();
         // m_reasoningContainer 是稳定子 widget（仅 Assistant 角色一次性构造），
-        // 不能 deleteLater——下一次 rebuild 还要复用。其他附件 widget 才是临时的。
-        if (w && w != m_reasoningContainer) {
+        // 不能 deleteLater——下一次 rebuild 还要复用。m_toolContainer 同理。
+        // 其他附件 widget 才是临时的。
+        if (w && w != m_reasoningContainer && w != m_toolContainer) {
             w->deleteLater();
         }
         delete item;
@@ -203,6 +208,12 @@ void MessageBubble::rebuildAttachmentWidgets()
     }
 
     m_bubbleLayout->addWidget(m_contentLabel);
+
+    // 工具调用区块放在正文之后：先读 assistant 的叙述文本，再看它调用了哪些工具。
+    // 与 reasoning 容器一样常驻、由 updateToolUi 控制可见性。
+    if (m_toolContainer) {
+        m_bubbleLayout->addWidget(m_toolContainer);
+    }
 }
 
 QWidget *MessageBubble::createAttachmentWidget(const Attachment &attachment, int idx)
@@ -539,6 +550,143 @@ void MessageBubble::appendReasoning(const QString &token)
 {
     m_reasoning += token;
     updateReasoningUi();
+}
+
+// ============================================================================
+// 工具调用（tool_use / tool_result）折叠区块
+// ============================================================================
+
+namespace {
+// argsJson 是完整的 JSON 对象字符串，压成单行紧凑形式用于气泡内展示。
+// 解析失败（理论上不会——入参由模型按 input_schema 生成）时原样返回 trimmed 文本。
+QString compactJson(const QString &json)
+{
+    const QString trimmed = json.trimmed();
+    if (trimmed.isEmpty()) {
+        return QString();
+    }
+    const QJsonDocument doc = QJsonDocument::fromJson(trimmed.toUtf8());
+    if (doc.isNull()) {
+        return trimmed;
+    }
+    return QString::fromUtf8(doc.toJson(QJsonDocument::Compact));
+}
+}  // namespace
+
+/**
+ * @brief 构造工具调用容器（仅 Assistant 角色一次性调用）
+ *
+ * 结构与 reasoning 区块对称：
+ *   [🔧 read_file, fetch_url ▶/▼]   头部按钮，点击切换折叠
+ *   [tool body]                      QLabel：逐条 name + 入参 + 结果
+ *
+ * 容器常驻 m_bubbleLayout（rebuildAttachmentWidgets 放在正文之后），
+ * m_toolCalls 为空时整体 hide()，看起来像没有这个区块。
+ */
+void MessageBubble::buildToolSection()
+{
+    m_toolContainer = new QWidget(m_bubbleWidget);
+    m_toolContainer->setObjectName("toolContainer");
+    QVBoxLayout *layout = new QVBoxLayout(m_toolContainer);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(4);
+
+    m_toolHeader = new QToolButton(m_toolContainer);
+    m_toolHeader->setAutoRaise(true);
+    m_toolHeader->setCursor(Qt::PointingHandCursor);
+    m_toolHeader->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    m_toolHeader->setStyleSheet(
+        QStringLiteral("QToolButton { padding: 2px 6px; color: rgba(128,128,128,0.85); "
+                       "font-size: 12px; border: 0; }"
+                       "QToolButton:hover { color: #10a37f; }"));
+    connect(m_toolHeader, &QToolButton::clicked, this, [this]() {
+        m_toolCollapsed = !m_toolCollapsed;
+        updateToolUi();
+    });
+
+    m_toolBody = new QLabel(m_toolContainer);
+    m_toolBody->setWordWrap(true);
+    m_toolBody->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    m_toolBody->setContextMenuPolicy(Qt::NoContextMenu);
+    m_toolBody->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
+    // 等宽字体更适合展示 JSON 入参与结果；背景比 reasoning 略带蓝灰以作区分。
+    // 半透明色在 light/dark 两套主题下叠加气泡底色都成立，无需随主题切换重刷。
+    m_toolBody->setStyleSheet(
+        QStringLiteral("QLabel { color: rgba(120,132,144,0.95); "
+                       "font-family: Consolas, 'Courier New', monospace; font-size: 12px; "
+                       "padding: 6px 10px; background: rgba(96,128,160,0.10); border-radius: 6px; }"));
+
+    layout->addWidget(m_toolHeader, 0, Qt::AlignLeft);
+    layout->addWidget(m_toolBody);
+}
+
+/**
+ * @brief 刷新工具区块：头部列出工具名，body 逐条显示 name / 入参 / 结果
+ *
+ * 结果按 toolUseId 与调用配对；单条结果过长时截断，避免 fetch_url 之类把
+ * 气泡撑爆。无调用时整体隐藏（普通回复气泡即此情形）。
+ */
+void MessageBubble::updateToolUi()
+{
+    if (!m_toolContainer) return;
+    const bool hasTools = !m_toolCalls.isEmpty();
+    m_toolContainer->setVisible(hasTools);
+    if (!hasTools) return;
+
+    // toolUseId → 结果，把每个 tool_use 和它的 tool_result 对上
+    QHash<QString, ToolResult> resultById;
+    for (const ToolResult &r : m_toolResults) {
+        resultById.insert(r.toolUseId, r);
+    }
+
+    // 头部：🔧 + 逗号分隔的工具名 + 折叠箭头
+    QStringList names;
+    for (const ToolCall &c : m_toolCalls) {
+        names << c.name;
+    }
+    // ▶ U+25B6 / ▼ U+25BC
+    const QString arrow = m_toolCollapsed
+        ? QStringLiteral("\xe2\x96\xb6")
+        : QStringLiteral("\xe2\x96\xbc");
+    // 🔧 U+1F527
+    m_toolHeader->setText(
+        QStringLiteral("\xf0\x9f\x94\xa7 %1 %2").arg(names.join(QStringLiteral(", ")), arrow));
+
+    // body：逐条「name  入参」+「→/⚠ 结果」，块间空一行；过长结果截断
+    static const int kMaxResultChars = 1200;
+    QStringList blocks;
+    for (const ToolCall &c : m_toolCalls) {
+        QString entry = c.name;
+
+        const QString args = compactJson(c.argsJson);
+        if (!args.isEmpty() && args != QStringLiteral("{}")) {
+            entry += QStringLiteral("  ") + args;
+        }
+
+        if (resultById.contains(c.id)) {
+            const ToolResult &r = resultById.value(c.id);
+            QString content = r.content;
+            if (content.size() > kMaxResultChars) {
+                content = content.left(kMaxResultChars)
+                    + QStringLiteral("\n\xe2\x80\xa6 (+%1 chars)").arg(content.size() - kMaxResultChars);
+            }
+            // ⚠ U+26A0（出错）/ → U+2192（正常）
+            const QString marker = r.isError
+                ? QStringLiteral("\xe2\x9a\xa0 ")
+                : QStringLiteral("\xe2\x86\x92 ");
+            entry += QStringLiteral("\n") + marker + content;
+        }
+        blocks << entry;
+    }
+    m_toolBody->setText(blocks.join(QStringLiteral("\n\n")));
+    m_toolBody->setVisible(!m_toolCollapsed);
+}
+
+void MessageBubble::setToolData(const QList<ToolCall> &calls, const QList<ToolResult> &results)
+{
+    m_toolCalls = calls;
+    m_toolResults = results;
+    updateToolUi();
 }
 
 /**
