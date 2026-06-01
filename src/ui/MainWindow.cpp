@@ -990,11 +990,19 @@ void MainWindow::runToolCallsAndContinue(const QList<ToolCall> &calls)
     ChatSession *session = m_sessionManager->activeSession();
     if (!session) return;
 
-    // 执行每个工具，结果回填到对应 tool_use 的 id，拼成一条 user(tool_result) 消息
+    // 执行每个工具，结果回填到对应 tool_use 的 id，拼成一条 user(tool_result) 消息。
+    // 执行前先过审批门（C6）：被拒的调用不执行，回填一条 isError 结果——既保持
+    // tool_use/tool_result 成对（会话合法），也让模型知道"被拒绝"而不是干等。
     ChatMessage toolMsg;
     toolMsg.role = "user";
     for (const ToolCall &call : calls) {
-        ToolResult result = ToolRegistry::instance().execute(call.name, call.argsJson);
+        ToolResult result;
+        if (approveToolCall(call)) {
+            result = ToolRegistry::instance().execute(call.name, call.argsJson);
+        } else {
+            result.isError = true;
+            result.content = QStringLiteral("Tool call denied by the user.");
+        }
         result.toolUseId = call.id;
         toolMsg.toolResults.append(result);
     }
@@ -1018,6 +1026,117 @@ void MainWindow::runToolCallsAndContinue(const QList<ToolCall> &calls)
 
     // 把工具结果作为新一轮历史回传：预建新 assistant 气泡 + 重置流式状态 + 发请求
     beginStreamingForActiveSession();
+}
+
+/**
+ * @brief 工具执行前的审批门（C6）
+ *
+ * ReadOnly（read_file / list_directory）直接放行，不打扰用户。Mutating /
+ * ShellOrNetwork 弹审批对话框；ShellOrNetwork 选 "Allow for session" 后把工具名
+ * 记入 m_sessionApprovedTools，本次运行内同名调用不再弹。未注册的工具放行，
+ * 交给 ToolRegistry::execute 统一回 "Unknown tool" 错误。
+ */
+bool MainWindow::approveToolCall(const ToolCall &call)
+{
+    const Tool *tool = ToolRegistry::instance().findTool(call.name);
+    if (!tool || tool->riskLevel == RiskLevel::ReadOnly) {
+        return true;
+    }
+    if (m_sessionApprovedTools.contains(call.name)) {
+        return true;
+    }
+
+    const ToolApproval decision = promptToolApproval(*tool, call.argsJson);
+    if (decision == ToolApproval::AllowedForSession) {
+        m_sessionApprovedTools.insert(call.name);
+        return true;
+    }
+    return decision == ToolApproval::AllowedOnce;
+}
+
+/**
+ * @brief 弹出跟随 ElaTheme 的工具审批对话框
+ *
+ * 展示工具名、用途说明、风险提示和入参（让用户能审 fetch_url 的 URL /
+ * read_file 的路径再决定）。按钮按 risk 分级：
+ *   - Mutating：       [Deny] ......... [Allow once]
+ *   - ShellOrNetwork： [Deny] [Allow for session] [Allow once]
+ * Esc / 关闭按钮不触发任何按钮信号，result 保持 Denied —— 安全默认。
+ */
+MainWindow::ToolApproval MainWindow::promptToolApproval(const Tool &tool, const QString &argsJson)
+{
+    ElaContentDialog dialog(this);
+    dialog.setWindowTitle(tr("Tool approval"));
+
+    QWidget *content = new QWidget;
+    QVBoxLayout *layout = new QVBoxLayout(content);
+    layout->setContentsMargins(20, 18, 20, 8);
+    layout->setSpacing(8);
+
+    QLabel *intro = new QLabel(
+        tr("The assistant wants to run the tool <b>%1</b>:").arg(tool.name.toHtmlEscaped()),
+        content);
+    intro->setWordWrap(true);
+    intro->setTextFormat(Qt::RichText);
+
+    QLabel *descLabel = new QLabel(tool.description, content);
+    descLabel->setWordWrap(true);
+    descLabel->setTextFormat(Qt::PlainText);
+    descLabel->setStyleSheet(QStringLiteral("color: rgba(128,128,128,0.95); font-size: 12px;"));
+
+    const QString riskCaption = (tool.riskLevel == RiskLevel::ShellOrNetwork)
+        ? tr("This tool can access the network or run external commands.")
+        : tr("This tool can modify files on your system.");
+    QLabel *riskLabel = new QLabel(riskCaption, content);
+    riskLabel->setWordWrap(true);
+    riskLabel->setTextFormat(Qt::PlainText);
+    riskLabel->setStyleSheet(QStringLiteral("color: #c0392b; font-size: 12px;"));
+
+    // 入参压成单行 JSON 给用户审；空参显示占位文案
+    QString argsText = argsJson.trimmed();
+    if (!argsText.isEmpty()) {
+        const QJsonDocument doc = QJsonDocument::fromJson(argsText.toUtf8());
+        if (!doc.isNull()) {
+            argsText = QString::fromUtf8(doc.toJson(QJsonDocument::Compact));
+        }
+    }
+    QLabel *argsLabel = new QLabel(argsText.isEmpty() ? tr("(no arguments)") : argsText, content);
+    argsLabel->setWordWrap(true);
+    argsLabel->setTextFormat(Qt::PlainText);
+    argsLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    argsLabel->setStyleSheet(QStringLiteral(
+        "font-family: Consolas, 'Courier New', monospace; font-size: 12px; "
+        "padding: 6px 10px; background: rgba(96,128,160,0.10); border-radius: 6px;"));
+
+    layout->addWidget(intro);
+    layout->addWidget(descLabel);
+    layout->addWidget(riskLabel);
+    layout->addWidget(argsLabel);
+
+    dialog.setCentralWidget(content);
+
+    // 显式 close() 保证 exec() 返回，不依赖各按钮的内置关闭行为（中间键尤其要保险）。
+    ToolApproval result = ToolApproval::Denied;
+    dialog.setLeftButtonText(tr("Deny"));
+    QObject::connect(&dialog, &ElaContentDialog::leftButtonClicked, &dialog, [&]() {
+        result = ToolApproval::Denied;
+        dialog.close();
+    });
+    dialog.setRightButtonText(tr("Allow once"));
+    QObject::connect(&dialog, &ElaContentDialog::rightButtonClicked, &dialog, [&]() {
+        result = ToolApproval::AllowedOnce;
+        dialog.close();
+    });
+    if (tool.riskLevel == RiskLevel::ShellOrNetwork) {
+        dialog.setMiddleButtonText(tr("Allow for session"));
+        QObject::connect(&dialog, &ElaContentDialog::middleButtonClicked, &dialog, [&]() {
+            result = ToolApproval::AllowedForSession;
+            dialog.close();
+        });
+    }
+
+    dialog.exec();
+    return result;
 }
 
 /**

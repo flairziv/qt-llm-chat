@@ -157,9 +157,9 @@ void registerHttpFetchTool()
         QStringLiteral("Optional request timeout in milliseconds. Default 15000."));
     t.inputSchema = makeObjectSchema(props, { QStringLiteral("url") });
 
-    // 当前默认 ReadOnly，先跑通协议链路；后续 commit 会改为 ShellOrNetwork
-    // 并接入审批弹窗（fetch_url 能联网，应该比纯文件读写更严格）。
-    t.riskLevel = RiskLevel::ReadOnly;
+    // fetch_url 能对任意地址发起请求，按 ShellOrNetwork 处理：执行前弹审批，
+    // 并提供"本会话允许"。审批门见 MainWindow::approveToolCall（C6）。
+    t.riskLevel = RiskLevel::ShellOrNetwork;
     t.execute = fetchUrl;
     ToolRegistry::instance().registerTool(std::move(t));
 }

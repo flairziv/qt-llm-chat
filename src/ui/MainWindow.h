@@ -4,6 +4,7 @@
 
 #include <QDateTime>
 #include <QNetworkAccessManager>
+#include <QSet>
 
 class AppSettings;
 class SessionManager;
@@ -85,6 +86,21 @@ private:
      * 防止模型与工具间失控往返。详见 MainWindow.cpp 实现处注释。
      */
     void runToolCallsAndContinue(const QList<ToolCall> &calls);
+
+    // ===== 工具审批（C6）=====
+    /** @brief 一次工具审批的结果：拒绝 / 仅本次允许 / 本次运行内一直允许 */
+    enum class ToolApproval { Denied, AllowedOnce, AllowedForSession };
+    /**
+     * @brief 工具执行前的审批门：ReadOnly 直接放行，其余弹审批对话框
+     *
+     * ShellOrNetwork 选 "Allow for session" 后把工具名记入 m_sessionApprovedTools，
+     * 本次运行内同名调用不再弹。返回 true 表示可执行；false 表示用户拒绝，调用方
+     * 回填一条 isError 的 tool_result，保持 tool_use/tool_result 成对、会话合法。
+     */
+    bool approveToolCall(const ToolCall &call);
+    /** @brief 弹出跟随 ElaTheme 的工具审批对话框；Esc / 关闭 = 拒绝（安全默认） */
+    ToolApproval promptToolApproval(const Tool &tool, const QString &argsJson);
+
     /**
      * @brief 首轮对话结束后自动生成简短会话标题
      *
@@ -138,6 +154,10 @@ private:
     // 工具即停（不再回传），防止模型与工具间无限往返。
     int m_agenticIterations = 0;
     static constexpr int kMaxAgenticIterations = 25;
+
+    // 本次运行内已"整段允许"的工具名（审批弹窗选 "Allow for session" 后加入）。
+    // 仅进程内有效，重启清空；C7 会提供持久化的按工具开关 / risk 覆盖。
+    QSet<QString> m_sessionApprovedTools;
 
     // TTS 相关
     EdgeTTSProvider *m_ttsProvider = nullptr;    // Edge TTS 语音合成器
