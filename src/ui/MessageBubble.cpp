@@ -132,6 +132,11 @@ void MessageBubble::setupUI()
     m_contentLabel->setWordWrap(true);
     m_contentLabel->setTextFormat(Qt::PlainText);
     m_contentLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    // 关掉 QLabel 自带的右键菜单（Copy / Select All）：否则在正文上右键会弹出
+    // QLabel 那份双项菜单，抢在气泡的 CustomContextMenu 之前，于是同一个气泡
+    // 出现两种菜单。设 NoContextMenu 让右键事件冒泡到 MessageBubble::onContextMenu，
+    // 由那份合并菜单统一处理（Copy / Select All / Favorite / Edit / Delete）。
+    m_contentLabel->setContextMenuPolicy(Qt::NoContextMenu);
     m_contentLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
     m_contentLabel->setVisible(!m_content.isEmpty());
 
@@ -265,6 +270,8 @@ QWidget *MessageBubble::createAttachmentWidget(const Attachment &attachment, int
     label->setWordWrap(true);
     label->setTextFormat(Qt::PlainText);
     label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    // 同正文 label：抑制 QLabel 自带右键菜单，让右键统一走气泡的合并菜单
+    label->setContextMenuPolicy(Qt::NoContextMenu);
     label->setStyleSheet(attachmentBgStyle());
     return label;
 }
