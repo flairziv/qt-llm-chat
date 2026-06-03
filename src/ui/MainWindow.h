@@ -91,6 +91,16 @@ private:
      */
     void runToolCallsAndContinue(const QList<ToolCall> &calls);
 
+    /**
+     * @brief 按 m_toolExecCalls 原始顺序拼一条 user(tool_result) 消息，落盘 + 合并渲染
+     *
+     * resultsById 提供每个 tool_use 对应结果（按 toolUseId）；未命中的调用兜底成一条
+     * isError 结果、content 取 fallbackContent。onToolExecFinished（正常完成）与 Esc
+     * 取消两条路径共用，保证产出结构一致的 tool_result，维持 tool_use/tool_result 成对。
+     */
+    void appendToolResultsMessage(const QHash<QString, ToolResult> &resultsById,
+                                  const QString &fallbackContent);
+
     // ===== 工具审批（C6）=====
     /** @brief 一次工具审批的结果：拒绝 / 仅本次允许 / 本次运行内一直允许 */
     enum class ToolApproval { Denied, AllowedOnce, AllowedForSession };
@@ -168,7 +178,12 @@ private:
     // 主线程不冻结。审批仍在 GUI 线程（模态对话框），只有 execute 跨线程。执行期间
     // m_isStreaming 保持 true（仍属"忙"），但没有活跃网络流——Esc 路径据
     // m_toolExecInProgress 区分这一状态。
+    //
+    // 取消（C8b）：QtConcurrent::run 无法中断，工具会在后台跑完。Esc 做"逻辑取消"——
+    // 立刻为本批 tool_use 写回 tool_result（保持成对、会话合法）并复位空闲，置
+    // m_toolExecCancelled 让迟到的 onToolExecFinished 丢弃工作线程结果、不重复写。
     bool m_toolExecInProgress = false;                          // 工具正在工作线程执行
+    bool m_toolExecCancelled = false;                           // Esc 已逻辑取消本批执行
     QFutureWatcher<QList<ToolResult>> *m_toolWatcher = nullptr; // 执行完成回到 GUI 线程
     QList<ToolCall> m_toolExecCalls;                            // 本批调用（原始顺序，用于重组结果）
     QHash<QString, ToolResult> m_toolExecDenied;                // 审批被拒的调用结果（按 toolUseId）

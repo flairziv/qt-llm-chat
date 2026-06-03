@@ -997,6 +997,7 @@ void MainWindow::runToolCallsAndContinue(const QList<ToolCall> &calls)
     QList<ApprovedCall> work;
     m_toolExecCalls = calls;
     m_toolExecDenied.clear();
+    m_toolExecCancelled = false;   // 新一批执行：清掉上一批可能残留的取消标志
     for (const ToolCall &call : calls) {
         if (approveToolCall(call)) {
             work.append({ call.id, call.name, call.argsJson });
@@ -1046,6 +1047,13 @@ void MainWindow::onToolExecFinished()
 {
     m_toolExecInProgress = false;
 
+    // 已被 Esc 逻辑取消：abort 路径已写过 tool_result 并复位 UI，这里只丢弃工作线程
+    // 迟到的结果（QtConcurrent::run 无法中断，工具已在后台跑完），不再重复落盘。
+    if (m_toolExecCancelled) {
+        m_toolExecCancelled = false;
+        return;
+    }
+
     // 执行结果按 toolUseId 建索引，叠加到"被拒"映射上，便于按原始顺序取回。
     QHash<QString, ToolResult> byId = m_toolExecDenied;
     const QList<ToolResult> execResults = m_toolWatcher->result();
@@ -1062,21 +1070,9 @@ void MainWindow::onToolExecFinished()
         return;
     }
 
-    // 按原始 tool_use 顺序拼回 tool_result，组成一条 user 消息。
-    ChatMessage toolMsg;
-    toolMsg.role = "user";
-    for (const ToolCall &call : m_toolExecCalls) {
-        ToolResult r = byId.value(call.id);
-        r.toolUseId = call.id;  // 兜底：value() 未命中时补上 id（正常不会发生）
-        toolMsg.toolResults.append(r);
-    }
-    session->addMessage(toolMsg);
-    m_sessionManager->saveSession(session);
-
-    // 把本轮 tool_use + tool_result 合并显示到刚结束流式的 assistant 气泡的工具
-    // 折叠区块（合成的 tool_result 消息本身不单独成气泡）。放在失控保护检查之前，
-    // 让「继续下一轮」和「达到上限即停」两条路径都能看到工具结果。
-    m_chatPage->addToolDataToLastBubble(m_toolExecCalls, toolMsg.toolResults);
+    // 拼 tool_result 消息落盘 + 合并渲染。byId 覆盖全部调用（被拒 + 已执行），
+    // 故 fallback 不会触发；仍传一个防御性文案以防意外缺项。
+    appendToolResultsMessage(byId, QStringLiteral("Tool produced no result."));
 
     // 失控保护：超过上限就停在这 —— 工具已执行、结果已落盘（tool_use/tool_result
     // 成对，会话合法），只是不再自动把结果喂回模型，用户可手动续。
@@ -1090,6 +1086,43 @@ void MainWindow::onToolExecFinished()
 
     // 把工具结果作为新一轮历史回传：预建新 assistant 气泡 + 重置流式状态 + 发请求
     beginStreamingForActiveSession();
+}
+
+/**
+ * @brief 按 m_toolExecCalls 原始顺序拼一条 user(tool_result) 消息，落盘 + 合并渲染
+ *
+ * resultsById 提供每个 tool_use 对应结果（按 toolUseId）；未命中的调用兜底成一条
+ * isError 结果、content 取 fallbackContent。两个调用方共用：
+ *   - onToolExecFinished：resultsById = 被拒 + 工作线程执行结果（覆盖全部，fallback 不触发）
+ *   - abortStreamingAndSavePartial 取消路径：resultsById = 仅被拒，已审批但被取消的调用走
+ *     fallback（"…cancelled…"）
+ * 保证两条路径产出结构一致的 tool_result，维持 tool_use/tool_result 成对的核心不变量。
+ */
+void MainWindow::appendToolResultsMessage(const QHash<QString, ToolResult> &resultsById,
+                                          const QString &fallbackContent)
+{
+    ChatSession *session = m_sessionManager->activeSession();
+    if (!session) return;
+
+    ChatMessage toolMsg;
+    toolMsg.role = "user";
+    for (const ToolCall &call : m_toolExecCalls) {
+        ToolResult r;
+        if (resultsById.contains(call.id)) {
+            r = resultsById.value(call.id);
+        } else {
+            r.isError = true;
+            r.content = fallbackContent;
+        }
+        r.toolUseId = call.id;
+        toolMsg.toolResults.append(r);
+    }
+    session->addMessage(toolMsg);
+    m_sessionManager->saveSession(session);
+
+    // 把本轮 tool_use + tool_result 合并显示到刚结束流式的 assistant 气泡的工具
+    // 折叠区块（合成的 tool_result 消息本身不单独成气泡）。
+    m_chatPage->addToolDataToLastBubble(m_toolExecCalls, toolMsg.toolResults);
 }
 
 /**
@@ -1215,11 +1248,22 @@ void MainWindow::abortStreamingAndSavePartial()
 {
     if (!m_isStreaming) return;
 
-    // 工具正在工作线程执行：本轮流式已结束，没有活跃网络流可中止；执行结果还没回来，
-    // 也无法打断 QtConcurrent::run。C8a 阶段 Esc 在工具执行期间直接忽略——强行走下面
-    // 的"保存 partial"会把已落盘的 assistant 回复重复 onResponseFinished 一次（脏数据）。
-    // 真正的"取消在途工具执行"留到 C8b。
-    if (m_toolExecInProgress) return;
+    // 工具正在工作线程执行：本轮流式已结束、没有活跃网络流可中止，QtConcurrent::run
+    // 也无法打断（工具会在后台跑完）。这里做"逻辑取消"：立刻为本批 tool_use 写回
+    // tool_result —— 被拒的用原结果，已审批/在跑的标 cancelled —— 保持 tool_use/
+    // tool_result 成对（否则用户紧接着发消息会让下次请求 400），再复位空闲。置
+    // m_toolExecCancelled，迟到的 onToolExecFinished 会丢弃工作线程结果、不重复写。
+    if (m_toolExecInProgress) {
+        m_toolExecCancelled = true;
+        m_toolExecInProgress = false;
+        appendToolResultsMessage(m_toolExecDenied,
+                                 QStringLiteral("Tool execution cancelled by the user."));
+        m_isStreaming = false;
+        m_chatPage->setInputEnabled(true);
+        m_chatPage->setLoading(false);
+        m_chatPage->setStatusText("Aborted");
+        return;
+    }
 
     const QString partial = m_provider ? m_provider->accumulatedResponse() : QString();
     if (m_provider) m_provider->abort();
