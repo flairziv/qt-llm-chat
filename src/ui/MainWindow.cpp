@@ -399,6 +399,7 @@ void MainWindow::createProvider()
     if (providerName == "claude") {
         m_provider = new ClaudeProvider(
             m_nam,
+            m_settings,
             m_settings->claudeApiKey(),
             m_settings->claudeBaseUrl(),
             m_settings->claudeModel(),
@@ -1126,24 +1127,43 @@ void MainWindow::appendToolResultsMessage(const QHash<QString, ToolResult> &resu
 }
 
 /**
- * @brief 工具执行前的审批门（C6）
+ * @brief 工具执行前的审批门（C6 审批 + C7 启用开关 / risk override）
  *
- * ReadOnly（read_file / list_directory）直接放行，不打扰用户。Mutating /
- * ShellOrNetwork 弹审批对话框；ShellOrNetwork 选 "Allow for session" 后把工具名
- * 记入 m_sessionApprovedTools，本次运行内同名调用不再弹。未注册的工具放行，
- * 交给 ToolRegistry::execute 统一回 "Unknown tool" 错误。
+ * 顺序：未注册 → 放行（交给 ToolRegistry::execute 回 "Unknown tool"）；被设置页禁用
+ * （总开关关 / 单独禁用）→ 拒绝；否则按"有效风险级别"（注册默认，被设置页 risk
+ * override 覆盖）决定：ReadOnly 直接放行；Mutating / ShellOrNetwork 弹审批对话框，
+ * ShellOrNetwork 选 "Allow for session" 后把工具名记入 m_sessionApprovedTools，本次
+ * 运行内同名调用不再弹。
  */
 bool MainWindow::approveToolCall(const ToolCall &call)
 {
     const Tool *tool = ToolRegistry::instance().findTool(call.name);
-    if (!tool || tool->riskLevel == RiskLevel::ReadOnly) {
+    if (!tool) {
+        return true;  // 未注册：放行，交给 ToolRegistry::execute 统一回 "Unknown tool"
+    }
+
+    // 工具被设置页禁用（总开关关闭或单独禁用）：直接拒绝。正常情况下禁用工具压根不会
+    // 出现在 tools 数组、模型也调不到；这里兜底续传场景——禁用前会话里已有的 tool_use
+    // 被回放、或执行中途总开关被关。回 false → 调用方写一条 isError 的 tool_result。
+    if (!m_settings->toolsEnabled() || !m_settings->toolEnabled(call.name)) {
+        return false;
+    }
+
+    // 有效风险级别：设置页的 risk override 覆盖注册默认（空 override = 用默认）。
+    RiskLevel effectiveRisk = tool->riskLevel;
+    const QString riskOverride = m_settings->toolRiskOverride(call.name);
+    if (!riskOverride.isEmpty()) {
+        effectiveRisk = riskLevelFromString(riskOverride, tool->riskLevel);
+    }
+
+    if (effectiveRisk == RiskLevel::ReadOnly) {
         return true;
     }
     if (m_sessionApprovedTools.contains(call.name)) {
         return true;
     }
 
-    const ToolApproval decision = promptToolApproval(*tool, call.argsJson);
+    const ToolApproval decision = promptToolApproval(*tool, effectiveRisk, call.argsJson);
     if (decision == ToolApproval::AllowedForSession) {
         m_sessionApprovedTools.insert(call.name);
         return true;
@@ -1155,12 +1175,12 @@ bool MainWindow::approveToolCall(const ToolCall &call)
  * @brief 弹出跟随 ElaTheme 的工具审批对话框
  *
  * 展示工具名、用途说明、风险提示和入参（让用户能审 fetch_url 的 URL /
- * read_file 的路径再决定）。按钮按 risk 分级：
+ * read_file 的路径再决定）。按钮按 effectiveRisk（注册默认 + 设置页 override）分级：
  *   - Mutating：       [Deny] ......... [Allow once]
  *   - ShellOrNetwork： [Deny] [Allow for session] [Allow once]
  * Esc / 关闭按钮不触发任何按钮信号，result 保持 Denied —— 安全默认。
  */
-MainWindow::ToolApproval MainWindow::promptToolApproval(const Tool &tool, const QString &argsJson)
+MainWindow::ToolApproval MainWindow::promptToolApproval(const Tool &tool, RiskLevel effectiveRisk, const QString &argsJson)
 {
     ElaContentDialog dialog(this);
     dialog.setWindowTitle(tr("Tool approval"));
@@ -1181,7 +1201,7 @@ MainWindow::ToolApproval MainWindow::promptToolApproval(const Tool &tool, const 
     descLabel->setTextFormat(Qt::PlainText);
     descLabel->setStyleSheet(QStringLiteral("color: rgba(128,128,128,0.95); font-size: 12px;"));
 
-    const QString riskCaption = (tool.riskLevel == RiskLevel::ShellOrNetwork)
+    const QString riskCaption = (effectiveRisk == RiskLevel::ShellOrNetwork)
         ? tr("This tool can access the network or run external commands.")
         : tr("This tool can modify files on your system.");
     QLabel *riskLabel = new QLabel(riskCaption, content);
@@ -1224,7 +1244,7 @@ MainWindow::ToolApproval MainWindow::promptToolApproval(const Tool &tool, const 
         result = ToolApproval::AllowedOnce;
         dialog.close();
     });
-    if (tool.riskLevel == RiskLevel::ShellOrNetwork) {
+    if (effectiveRisk == RiskLevel::ShellOrNetwork) {
         dialog.setMiddleButtonText(tr("Allow for session"));
         QObject::connect(&dialog, &ElaContentDialog::middleButtonClicked, &dialog, [&]() {
             result = ToolApproval::AllowedForSession;

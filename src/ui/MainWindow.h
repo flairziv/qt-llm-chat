@@ -112,8 +112,9 @@ private:
      * 回填一条 isError 的 tool_result，保持 tool_use/tool_result 成对、会话合法。
      */
     bool approveToolCall(const ToolCall &call);
-    /** @brief 弹出跟随 ElaTheme 的工具审批对话框；Esc / 关闭 = 拒绝（安全默认） */
-    ToolApproval promptToolApproval(const Tool &tool, const QString &argsJson);
+    /** @brief 弹出跟随 ElaTheme 的工具审批对话框；Esc / 关闭 = 拒绝（安全默认）。
+     *  effectiveRisk 是算入设置页 risk override 后的有效级别，决定按钮分级与风险文案。 */
+    ToolApproval promptToolApproval(const Tool &tool, RiskLevel effectiveRisk, const QString &argsJson);
 
     /**
      * @brief 首轮对话结束后自动生成简短会话标题

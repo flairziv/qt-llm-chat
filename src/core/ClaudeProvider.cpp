@@ -1,4 +1,5 @@
 #include "ClaudeProvider.h"
+#include "AppSettings.h"
 #include "ToolRegistry.h"
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -33,12 +34,14 @@ bool usesAdaptiveThinking(const QString &model)
 } // namespace
 
 ClaudeProvider::ClaudeProvider(QNetworkAccessManager *nam,
+                               AppSettings *settings,
                                const QString &apiKey,
                                const QString &baseUrl,
                                const QString &model,
                                const QString &reasoningEffort,
                                QObject *parent)
     : LLMProvider(nam, parent)
+    , m_settings(settings)
     , m_apiKey(apiKey)
     , m_baseUrl(baseUrl)
     , m_model(model)
@@ -211,19 +214,25 @@ void ClaudeProvider::doSendStreamingRequest(
 
     // 把已注册的内置工具作为 tools 数组随请求发出，模型据此决定是否发起 tool_use。
     // Claude tools 协议的每个条目形如 {name, description, input_schema}，三个字段
-    // 直接取自 Tool 结构。tool_use 块的流式解析在 C3b、执行与回传在 C3c 接入；
-    // 这里只负责让模型「看见」工具。无工具注册时不写 tools 字段，保持请求体精简。
+    // 直接取自 Tool 结构。设置页（C7）可关总开关或单独禁用某工具：总开关关 → 整个
+    // tools 字段不发；被禁用的工具从数组里剔除。过滤后为空也不写 tools 字段——既保持
+    // 请求体精简，也等价于"本次不提供工具"。设置在请求时实时读，无需重建本对象。
     const QList<Tool> tools = ToolRegistry::instance().availableTools();
-    if (!tools.isEmpty()) {
+    if (!tools.isEmpty() && m_settings->toolsEnabled()) {
         QJsonArray toolsArray;
         for (const auto &tool : tools) {
+            if (!m_settings->toolEnabled(tool.name)) {
+                continue;
+            }
             QJsonObject def;
             def["name"] = tool.name;
             def["description"] = tool.description;
             def["input_schema"] = tool.inputSchema;
             toolsArray.append(def);
         }
-        body["tools"] = toolsArray;
+        if (!toolsArray.isEmpty()) {
+            body["tools"] = toolsArray;
+        }
     }
 
     QNetworkReply *reply = m_nam->post(request, QJsonDocument(body).toJson());

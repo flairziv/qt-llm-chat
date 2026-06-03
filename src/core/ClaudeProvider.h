@@ -2,11 +2,14 @@
 #include "LLMProvider.h"
 #include <QHash>
 
+class AppSettings;
+
 class ClaudeProvider : public LLMProvider
 {
     Q_OBJECT
 public:
     ClaudeProvider(QNetworkAccessManager *nam,
+                   AppSettings *settings,
                    const QString &apiKey,
                    const QString &baseUrl,
                    const QString &model,
@@ -31,6 +34,10 @@ protected:
     LLMProviderParseResult parseSSEData(const QByteArray &data) override;
 
 private:
+    // tools 数组过滤用：总开关 toolsEnabled() + 按工具 toolEnabled(name)。请求时实时读，
+    // 改设置无需重建本对象（createProvider 仍会在 provider 配置变更时重建，无妨）。
+    // 声明在最前，配合初始化列表最先初始化，避免 /W4 的 C5038 成员初始化顺序告警。
+    AppSettings *m_settings;
     QString m_apiKey;
     QString m_baseUrl;
     QString m_model;
