@@ -207,6 +207,22 @@ double AppSettings::temperature() const { return m_settings->value("General/temp
 void AppSettings::setTemperature(double temp) { m_settings->setValue("General/temperature", temp); scheduleUiFlush(); }
 
 // ============================================================
+// 工具调用配置（无信号：请求 / 审批时实时读取，改设置不重建 Provider）
+// ============================================================
+
+// 总开关：关掉后 ClaudeProvider 不再发送 tools 数组，模型不会发起 tool_use。
+bool AppSettings::toolsEnabled() const { return m_settings->value("Tools/enabled", true).toBool(); }
+void AppSettings::setToolsEnabled(bool enabled) { m_settings->setValue("Tools/enabled", enabled); m_settings->sync(); }
+
+// 单工具开关：默认启用；按工具名存到 [ToolEnabled] 分组下（工具名为 snake_case，可直接作键）。
+bool AppSettings::toolEnabled(const QString &name) const { return m_settings->value("ToolEnabled/" + name, true).toBool(); }
+void AppSettings::setToolEnabled(const QString &name, bool enabled) { m_settings->setValue("ToolEnabled/" + name, enabled); m_settings->sync(); }
+
+// 风险覆盖：空字符串表示沿用注册时的默认级别（见 Tool::riskLevel / riskLevelFromString）。
+QString AppSettings::toolRiskOverride(const QString &name) const { return m_settings->value("ToolRiskOverride/" + name).toString(); }
+void AppSettings::setToolRiskOverride(const QString &name, const QString &risk) { m_settings->setValue("ToolRiskOverride/" + name, risk); m_settings->sync(); }
+
+// ============================================================
 // 立绘配置（无信号；调用方需要时自行处理）
 // ============================================================
 

@@ -24,6 +24,31 @@ enum class RiskLevel {
 };
 
 /**
+ * @brief RiskLevel ↔ 字符串互转
+ *
+ * 用于 settings.ini 里人读的 risk override 字段（设置页 C7 写、审批门读）。
+ * 存字符串而非数字，让用户直接看 INI 就能懂 / 手改。未知字符串回退到 fallback，
+ * 向后兼容（删除某个级别名 / 手写错时不会崩）。
+ */
+inline QString riskLevelToString(RiskLevel level)
+{
+    switch (level) {
+    case RiskLevel::ReadOnly:       return QStringLiteral("ReadOnly");
+    case RiskLevel::Mutating:       return QStringLiteral("Mutating");
+    case RiskLevel::ShellOrNetwork: return QStringLiteral("ShellOrNetwork");
+    }
+    return QStringLiteral("ReadOnly");
+}
+
+inline RiskLevel riskLevelFromString(const QString &s, RiskLevel fallback = RiskLevel::ReadOnly)
+{
+    if (s == QLatin1String("ReadOnly"))       return RiskLevel::ReadOnly;
+    if (s == QLatin1String("Mutating"))       return RiskLevel::Mutating;
+    if (s == QLatin1String("ShellOrNetwork")) return RiskLevel::ShellOrNetwork;
+    return fallback;
+}
+
+/**
  * @brief 一次工具执行的结果
  *
  * toolUseId 关联到 ToolCall::id，由 MainWindow 在拿到 ToolRegistry::execute()

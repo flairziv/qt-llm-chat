@@ -68,6 +68,16 @@ public:
     double temperature() const;
     void setTemperature(double temp);
 
+    // --- 工具调用配置 ---
+    // 无信号：请求构造（ClaudeProvider）/ 审批门（MainWindow）在用到时实时读取，
+    // 改这些不重建 Provider，也就不会打断在途流式。
+    bool toolsEnabled() const;                              // 工具总开关，默认 true
+    void setToolsEnabled(bool enabled);
+    bool toolEnabled(const QString &name) const;            // 单个工具开关，默认 true
+    void setToolEnabled(const QString &name, bool enabled);
+    QString toolRiskOverride(const QString &name) const;    // 风险级别覆盖，空=用注册默认
+    void setToolRiskOverride(const QString &name, const QString &risk);
+
     // --- 立绘配置 ---
     bool tachieEnabled() const;
     void setTachieEnabled(bool enabled);
