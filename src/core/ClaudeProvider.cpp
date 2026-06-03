@@ -92,6 +92,25 @@ void ClaudeProvider::doSendStreamingRequest(
     }
 
     QJsonArray msgArray;
+
+    // Claude 要求 user/assistant 严格交替。但 cancel / 达到工具上限后会话会停在一条
+    // user(tool_result)，用户紧接着发的 user 文本（或出错后用户再发一条）就会产生两条
+    // 连续同角色消息 → 400 "roles must alternate"。下面把相邻同角色消息的 content 块并进
+    // 同一条 turn（user turn 可合法地同时含 tool_result 块和 text 块）。普通交替对话不触发
+    // 合并，纯文本消息仍以字符串 content 发出，请求体保持精简。
+    auto contentToBlocks = [](const QJsonValue &content) -> QJsonArray {
+        if (content.isArray()) return content.toArray();
+        QJsonArray arr;
+        const QString s = content.toString();
+        if (!s.isEmpty()) {
+            QJsonObject textBlock;
+            textBlock["type"] = "text";
+            textBlock["text"] = s;
+            arr.append(textBlock);
+        }
+        return arr;
+    };
+
     for (const auto &msg : messages) {
         if (msg.role == "system") continue;
         QJsonObject m;
@@ -173,7 +192,20 @@ void ClaudeProvider::doSendStreamingRequest(
             m["content"] = contentArray;
         }
 
-        msgArray.append(m);
+        // 与上一条同角色则合并 content 块（维持 user/assistant 交替），否则作为新 turn 追加。
+        if (!msgArray.isEmpty()
+            && msgArray.last().toObject().value("role").toString() == msg.role) {
+            QJsonObject prev = msgArray.last().toObject();
+            QJsonArray merged = contentToBlocks(prev.value("content"));
+            const QJsonArray addition = contentToBlocks(m.value("content"));
+            for (int i = 0; i < addition.size(); ++i) {
+                merged.append(addition.at(i));
+            }
+            prev["content"] = merged;
+            msgArray.replace(msgArray.size() - 1, prev);
+        } else {
+            msgArray.append(m);
+        }
     }
     body["messages"] = msgArray;
 
