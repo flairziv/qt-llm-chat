@@ -34,6 +34,7 @@ set(SOURCES
     src/ui/SettingGeminiPage.cpp
     src/ui/SettingOpenAIPage.cpp
     src/ui/SettingGeneralPage.cpp
+    src/ui/SettingToolsPage.cpp
     src/ui/TachieWindow.cpp
     src/ui/AssistantLoadingWidget.cpp
     src/ui/ShimmerWidget.cpp
@@ -65,6 +66,7 @@ set(HEADERS
     src/ui/SettingGeminiPage.h
     src/ui/SettingOpenAIPage.h
     src/ui/SettingGeneralPage.h
+    src/ui/SettingToolsPage.h
     src/ui/ProviderSettingHelpers.h
     src/ui/TachieWindow.h
     src/ui/AssistantLoadingWidget.h

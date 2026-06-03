@@ -17,6 +17,7 @@ class SettingClaudePage;
 class SettingOpenAIPage;
 class SettingGeminiPage;
 class SettingGeneralPage;
+class SettingToolsPage;
 class LLMProvider;
 class ChatSession;
 class TachieWindow;
@@ -139,6 +140,7 @@ private:
     SettingOpenAIPage *m_openaiPage;
     SettingGeminiPage *m_geminiPage;
     SettingGeneralPage *m_generalPage;
+    SettingToolsPage *m_toolsPage;
 
     // 立绘相关
     TachieWindow *m_tachieWindow = nullptr;     // 立绘窗口（独立顶层窗口）

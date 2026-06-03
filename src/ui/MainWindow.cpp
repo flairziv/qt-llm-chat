@@ -6,6 +6,7 @@
 #include "SettingGeminiPage.h"
 #include "SettingOpenAIPage.h"
 #include "SettingGeneralPage.h"
+#include "SettingToolsPage.h"
 #include "TachieWindow.h"
 #include "core/AppSettings.h"
 #include "core/SessionManager.h"
@@ -272,6 +273,9 @@ void MainWindow::setupPages()
 
     m_generalPage = new SettingGeneralPage(m_settings, this);
     addPageNode("General", m_generalPage, settingsGroup, ElaIconType::Speaker);
+
+    m_toolsPage = new SettingToolsPage(m_settings, this);
+    addPageNode("Tools", m_toolsPage, settingsGroup, ElaIconType::ScrewdriverWrench);
 }
 
 // ============================================================================
