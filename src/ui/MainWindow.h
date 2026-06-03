@@ -3,6 +3,8 @@
 #include "core/ChatSession.h"
 
 #include <QDateTime>
+#include <QFutureWatcher>
+#include <QHash>
 #include <QNetworkAccessManager>
 #include <QSet>
 
@@ -66,6 +68,7 @@ private slots:
     void onImageGenerationStarted(int count);  // Provider 开始图像生成 → 切状态文字
     void flushPendingBubbleText();              // 把累积的 token 批量喂给气泡（80ms 节流）
     void onReasoningTokenReceived(const QString &token); // 收到 reasoning（思考链）增量
+    void onToolExecFinished();                  // 工具在工作线程执行完毕 → 回 GUI 线程续传（C8）
 
 private:
     void setupPages();
@@ -80,8 +83,9 @@ private:
     /**
      * @brief 执行模型发起的工具调用，回传结果并继续 agentic 循环
      *
-     * onResponseFinished 检测到本轮有未决 tool_use（且非中止）时调用：跑工具、
-     * 把 tool_result 拼成 user 消息追加进会话、再发起下一轮请求。每轮自增
+     * onResponseFinished 检测到本轮有未决 tool_use（且非中止）时调用：先在 GUI 线程
+     * 过审批门，再把已审批工具丢到工作线程异步执行（C8，避免 fetch_url 同步阻塞冻结
+     * 界面）；执行完毕由 onToolExecFinished 拼 tool_result、落盘、续传下一轮。每轮自增
      * m_agenticIterations，超过 kMaxAgenticIterations 后执行完工具即停（不再回传），
      * 防止模型与工具间失控往返。详见 MainWindow.cpp 实现处注释。
      */
@@ -158,6 +162,16 @@ private:
     // 本次运行内已"整段允许"的工具名（审批弹窗选 "Allow for session" 后加入）。
     // 仅进程内有效，重启清空；C7 会提供持久化的按工具开关 / risk 覆盖。
     QSet<QString> m_sessionApprovedTools;
+
+    // ===== 工具异步执行（C8）=====
+    // 工具 execute 可能阻塞（fetch_url 同步 GET 最长 15s），挪到 QtConcurrent 线程池跑，
+    // 主线程不冻结。审批仍在 GUI 线程（模态对话框），只有 execute 跨线程。执行期间
+    // m_isStreaming 保持 true（仍属"忙"），但没有活跃网络流——Esc 路径据
+    // m_toolExecInProgress 区分这一状态。
+    bool m_toolExecInProgress = false;                          // 工具正在工作线程执行
+    QFutureWatcher<QList<ToolResult>> *m_toolWatcher = nullptr; // 执行完成回到 GUI 线程
+    QList<ToolCall> m_toolExecCalls;                            // 本批调用（原始顺序，用于重组结果）
+    QHash<QString, ToolResult> m_toolExecDenied;                // 审批被拒的调用结果（按 toolUseId）
 
     // TTS 相关
     EdgeTTSProvider *m_ttsProvider = nullptr;    // Edge TTS 语音合成器

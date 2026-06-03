@@ -36,6 +36,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QRandomGenerator>
+#include <QtConcurrent>
 
 #include "ElaContentDialog.h"
 
@@ -970,41 +971,104 @@ void MainWindow::onResponseFinished(const QString &fullResponse)
 }
 
 /**
- * @brief 执行模型发起的工具调用，把结果回传并继续 agentic 循环
+ * @brief 执行模型发起的工具调用（异步），结果由 onToolExecFinished 回传并续传
  *
- * onResponseFinished 发现本轮有未决 tool_use 时调用：逐个跑
- * ToolRegistry::execute（C3 阶段直接执行，不弹审批；审批 UI 留到 C6），把
- * ToolResult 回填 toolUseId 后拼成一条 user 消息（携带 tool_result 块）追加进
- * 会话并持久化，再 beginStreamingForActiveSession 让模型基于工具结果继续。
+ * onResponseFinished 发现本轮有未决 tool_use 时调用。拆成跨线程的两半：
+ *   1. 本函数（GUI 线程）：逐个过审批门（C6，模态对话框必须在 GUI 线程）。通过的
+ *      调用收进 work 列表（只带跨线程安全的纯字符串），被拒的当场生成 isError 结果
+ *      存入 m_toolExecDenied。随后把 work 丢进 QtConcurrent 线程池执行——fetch_url
+ *      是同步 GET（最长 15s），搬到线程池后主线程不再冻结。置 m_toolExecInProgress。
+ *   2. onToolExecFinished（执行完回到 GUI 线程）：按原始顺序重组 tool_result，拼成
+ *      一条 user 消息落盘 + 合并渲染，再做失控保护 / 续传下一轮。
  *
- * 此时 session->messages() 已含 tool_use + tool_result，请求体构造时会还原成
- * Claude 协议的内容块（见 ClaudeProvider::doSendStreamingRequest）。
- *
- * 失控保护：每轮 ++m_agenticIterations，超过 kMaxAgenticIterations 就执行完工具
- * 即停 —— 会话里 tool_use 与 tool_result 仍成对（合法），只是不再自动把结果喂回
- * 模型，避免模型与工具间无限往返。同步执行会短暂阻塞 UI（fetch_url 尤甚），
- * 异步化留到 C8。
+ * 线程安全：fetch_url 用本地 QNAM + 本地事件循环，自包含、线程内自洽，可安全在
+ * 工作线程跑；ToolRegistry 启动后只读，跨线程并发读无数据竞争。execute 不抛
+ * （异常在 ToolRegistry 内兜底成 isError），故工作线程 lambda 无需 try/catch。
  */
 void MainWindow::runToolCallsAndContinue(const QList<ToolCall> &calls)
 {
     ChatSession *session = m_sessionManager->activeSession();
     if (!session) return;
 
-    // 执行每个工具，结果回填到对应 tool_use 的 id，拼成一条 user(tool_result) 消息。
-    // 执行前先过审批门（C6）：被拒的调用不执行，回填一条 isError 结果——既保持
-    // tool_use/tool_result 成对（会话合法），也让模型知道"被拒绝"而不是干等。
+    // 审批必须在 GUI 线程跑完：通过的进 work（纯数据，跨线程安全），被拒的当场生成
+    // isError 结果存 m_toolExecDenied，finished 时按 id 取回。既保持 tool_use/
+    // tool_result 成对（会话合法），也让模型知道"被拒绝"而不是干等。
+    struct ApprovedCall { QString id; QString name; QString args; };
+    QList<ApprovedCall> work;
+    m_toolExecCalls = calls;
+    m_toolExecDenied.clear();
+    for (const ToolCall &call : calls) {
+        if (approveToolCall(call)) {
+            work.append({ call.id, call.name, call.argsJson });
+        } else {
+            ToolResult denied;
+            denied.isError = true;
+            denied.content = QStringLiteral("Tool call denied by the user.");
+            denied.toolUseId = call.id;
+            m_toolExecDenied.insert(call.id, denied);
+        }
+    }
+
+    // 进入"工具执行中"：输入仍禁用、转圈继续（沿用本轮流式的 busy 态），状态切到
+    // "Running tools..."。m_isStreaming 保持 true，但 Esc 路径会据 m_toolExecInProgress
+    // 区分出"没有活跃网络流可中止"。
+    m_toolExecInProgress = true;
+    m_chatPage->setStatusText(QStringLiteral("Running tools..."));
+
+    if (!m_toolWatcher) {
+        m_toolWatcher = new QFutureWatcher<QList<ToolResult>>(this);
+        connect(m_toolWatcher, &QFutureWatcher<QList<ToolResult>>::finished,
+                this, &MainWindow::onToolExecFinished);
+    }
+
+    // 工作线程顺序执行已审批工具，每个结果回填对应 tool_use 的 id。
+    m_toolWatcher->setFuture(QtConcurrent::run([work]() -> QList<ToolResult> {
+        QList<ToolResult> out;
+        out.reserve(work.size());
+        for (const ApprovedCall &c : work) {
+            ToolResult r = ToolRegistry::instance().execute(c.name, c.args);
+            r.toolUseId = c.id;
+            out.append(r);
+        }
+        return out;
+    }));
+}
+
+/**
+ * @brief 工具在工作线程执行完毕，回到 GUI 线程：重组结果 → 落盘 → 续传 / 收尾
+ *
+ * 按 m_toolExecCalls 的原始顺序重组每个 tool_result（被拒的取 m_toolExecDenied，
+ * 已执行的取 future 结果），保证 tool_use 与 tool_result 顺序、配对一致。随后追加
+ * 一条携带 tool_result 的 user 消息、持久化、合并渲染到发起调用的 assistant 气泡，
+ * 最后做失控保护：超上限即停（结果仍成对落盘，只是不再回传），否则发起下一轮。
+ */
+void MainWindow::onToolExecFinished()
+{
+    m_toolExecInProgress = false;
+
+    // 执行结果按 toolUseId 建索引，叠加到"被拒"映射上，便于按原始顺序取回。
+    QHash<QString, ToolResult> byId = m_toolExecDenied;
+    const QList<ToolResult> execResults = m_toolWatcher->result();
+    for (const ToolResult &r : execResults) {
+        byId.insert(r.toolUseId, r);
+    }
+
+    ChatSession *session = m_sessionManager->activeSession();
+    if (!session) {
+        // 会话在执行期间没了（m_isStreaming 守卫本应挡住切换，这里兜底）：回到空闲态。
+        m_isStreaming = false;
+        m_chatPage->setInputEnabled(true);
+        m_chatPage->setLoading(false);
+        return;
+    }
+
+    // 按原始 tool_use 顺序拼回 tool_result，组成一条 user 消息。
     ChatMessage toolMsg;
     toolMsg.role = "user";
-    for (const ToolCall &call : calls) {
-        ToolResult result;
-        if (approveToolCall(call)) {
-            result = ToolRegistry::instance().execute(call.name, call.argsJson);
-        } else {
-            result.isError = true;
-            result.content = QStringLiteral("Tool call denied by the user.");
-        }
-        result.toolUseId = call.id;
-        toolMsg.toolResults.append(result);
+    for (const ToolCall &call : m_toolExecCalls) {
+        ToolResult r = byId.value(call.id);
+        r.toolUseId = call.id;  // 兜底：value() 未命中时补上 id（正常不会发生）
+        toolMsg.toolResults.append(r);
     }
     session->addMessage(toolMsg);
     m_sessionManager->saveSession(session);
@@ -1012,7 +1076,7 @@ void MainWindow::runToolCallsAndContinue(const QList<ToolCall> &calls)
     // 把本轮 tool_use + tool_result 合并显示到刚结束流式的 assistant 气泡的工具
     // 折叠区块（合成的 tool_result 消息本身不单独成气泡）。放在失控保护检查之前，
     // 让「继续下一轮」和「达到上限即停」两条路径都能看到工具结果。
-    m_chatPage->addToolDataToLastBubble(calls, toolMsg.toolResults);
+    m_chatPage->addToolDataToLastBubble(m_toolExecCalls, toolMsg.toolResults);
 
     // 失控保护：超过上限就停在这 —— 工具已执行、结果已落盘（tool_use/tool_result
     // 成对，会话合法），只是不再自动把结果喂回模型，用户可手动续。
@@ -1150,6 +1214,12 @@ MainWindow::ToolApproval MainWindow::promptToolApproval(const Tool &tool, const 
 void MainWindow::abortStreamingAndSavePartial()
 {
     if (!m_isStreaming) return;
+
+    // 工具正在工作线程执行：本轮流式已结束，没有活跃网络流可中止；执行结果还没回来，
+    // 也无法打断 QtConcurrent::run。C8a 阶段 Esc 在工具执行期间直接忽略——强行走下面
+    // 的"保存 partial"会把已落盘的 assistant 回复重复 onResponseFinished 一次（脏数据）。
+    // 真正的"取消在途工具执行"留到 C8b。
+    if (m_toolExecInProgress) return;
 
     const QString partial = m_provider ? m_provider->accumulatedResponse() : QString();
     if (m_provider) m_provider->abort();
